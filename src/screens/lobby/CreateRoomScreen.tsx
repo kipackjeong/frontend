@@ -11,6 +11,8 @@ import {
   Dimensions,
 
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { CreateRoomNavigationProp } from '../../types/navigation';
 import * as Clipboard from 'expo-clipboard';
 import { LinearGradient } from 'expo-linear-gradient';
 import Icon from 'react-native-vector-icons/Feather';
@@ -30,6 +32,7 @@ interface Player {
 }
 
 export function GameLobbyScreen() {
+  const navigation = useNavigation<CreateRoomNavigationProp>();
   const [roomCode, setRoomCode] = useState("WORD42");
   const [currentUserId] = useState("user1");
 
@@ -101,6 +104,29 @@ export function GameLobbyScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
+          {/* Header with back button */}
+          <View style={styles.headerContainer}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => {
+                Alert.alert(
+                  "Leave Room?",
+                  "Are you sure you want to leave this room?",
+                  [
+                    { text: "Cancel", style: "cancel" },
+                    {
+                      text: "Leave", style: "destructive", onPress: () => {
+                        navigation.navigate('LobbyScreen');
+                      }
+                    }
+                  ]
+                );
+              }}
+            >
+              <Icon name="arrow-left" size={24} color="#8b4513" />
+            </TouchableOpacity>
+          </View>
+
           {/* Warm, friendly header */}
           <View style={styles.header}>
             <View style={styles.iconContainer}>
@@ -271,6 +297,27 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 24,
     paddingBottom: 40,
+  },
+  headerContainer: {
+    width: '100%',
+    paddingHorizontal: 4,
+    paddingTop: 8,
+    paddingBottom: 8,
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(139, 69, 19, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(139, 69, 19, 0.2)',
+    shadowColor: '#8b4513',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   header: {
     alignItems: 'center',
