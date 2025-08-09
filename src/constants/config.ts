@@ -53,6 +53,9 @@ export const UI_CONFIG = {
     TEXT_SECONDARY: '#757575',
     BORDER: '#E0E0E0',
   },
+  GRADIENTS: {
+    INVITE_BUTTON: ['#8b4513', '#228b22'] as string[], // Brown to green gradient for invite/share buttons
+  },
   SPACING: {
     xs: 4,
     sm: 8,

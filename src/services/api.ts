@@ -4,6 +4,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from '../constants/config';
+import { mapApiResponse, safeMapApiResponse, mapApiResponseArray } from '../utils/responseMapper';
 
 // Types
 export interface ApiResponse<T> {
@@ -79,7 +80,7 @@ class ApiService {
   async setTokens(accessToken: string, refreshToken: string): Promise<void> {
     this.accessToken = accessToken;
     this.refreshToken = refreshToken;
-    
+
     try {
       await AsyncStorage.setItem(TOKEN_STORAGE_KEY, accessToken);
       await AsyncStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, refreshToken);
@@ -101,7 +102,7 @@ class ApiService {
   async clearTokens(): Promise<void> {
     this.accessToken = null;
     this.refreshToken = null;
-    
+
     try {
       await AsyncStorage.removeItem(TOKEN_STORAGE_KEY);
       await AsyncStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
@@ -292,6 +293,76 @@ class ApiService {
    */
   hasValidToken(): boolean {
     return !!this.accessToken;
+  }
+
+  // Room Management Methods
+
+  /**
+   * Create a new game room
+   */
+  async createRoom(roomData: { name: string; max_players?: number }): Promise<any> {
+    const response = await this.makeRequest('/api/rooms', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(roomData),
+    });
+
+    if (!response.success || !response.data) {
+      throw new Error(response.message || 'Failed to create room');
+    }
+
+    // ✅ Convert snake_case response to camelCase using camelcase-keys
+    return mapApiResponse(response.data);
+  }
+
+  /**
+   * Join a room by code
+   */
+  async joinRoom(roomCode: string): Promise<any> {
+    const response = await this.makeRequest('/api/rooms/join', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ code: roomCode }),
+    });
+
+    if (!response.success || !response.data) {
+      throw new Error(response.message || 'Failed to join room');
+    }
+
+    // ✅ Convert snake_case response to camelCase using camelcase-keys
+    return mapApiResponse(response.data);
+  }
+
+  /**
+   * Get room details with players
+   */
+  async getRoom(roomId: string): Promise<any> {
+    const response = await this.makeRequest(`/api/rooms/${roomId}`);
+
+    if (!response.success || !response.data) {
+      throw new Error(response.message || 'Failed to get room details');
+    }
+
+    // ✅ Convert snake_case response to camelCase using camelcase-keys
+    return mapApiResponse(response.data);
+  }
+
+  /**
+   * Get list of available rooms
+   */
+  async getAvailableRooms(): Promise<any[]> {
+    const response = await this.makeRequest<any[]>('/api/rooms');
+
+    if (!response.success || !response.data) {
+      throw new Error(response.message || 'Failed to get available rooms');
+    }
+
+    // ✅ Convert snake_case response array to camelCase using camelcase-keys
+    return Array.isArray(response.data) ? mapApiResponseArray(response.data) : [];
   }
 }
 

@@ -9,9 +9,10 @@ import { createUserSlice, UserSlice } from './slices/userSlice';
 import { createGameSlice, GameSlice } from './slices/gameSlice';
 import { createBoardSlice, BoardSlice } from './slices/boardSlice';
 import { createTurnSlice, TurnSlice } from './slices/turnSlice';
+import { createRoomSlice, RoomSlice } from './slices/roomSlice';
 
 // Combined store interface
-export interface AppStore extends UserSlice, GameSlice, BoardSlice, TurnSlice { }
+export interface AppStore extends UserSlice, GameSlice, BoardSlice, TurnSlice, RoomSlice { }
 
 // Create the main store with middleware
 export const useStore = create<AppStore>()(
@@ -22,12 +23,14 @@ export const useStore = create<AppStore>()(
         ...createGameSlice(set, get, api),
         ...createBoardSlice(set, get, api),
         ...createTurnSlice(set, get, api),
+        ...createRoomSlice(set, get, api),
       }),
       {
         name: 'choseong-bingo-store', // AsyncStorage key
         partialize: (state) => ({
-          // Only persist user data and some game preferences
+          // Only persist user data and current room session
           user: state.user,
+          currentRoom: state.currentRoom, // Persist room session
           // Don't persist real-time game state, boards, or timers
         }),
       }
@@ -38,11 +41,15 @@ export const useStore = create<AppStore>()(
 // Typed selectors for common store selections
 export const useUser = () => useStore((state) => state.user);
 export const useIsAuthenticated = () => useStore((state) => !!state.user?.isAuthenticated);
-export const useCurrentRoom = () => useStore((state) => state.room);
+export const useCurrentRoom = () => useStore((state) => state.currentRoom);
 export const useGameStatus = () => useStore((state) => state.room?.status);
 export const useCurrentBoard = () => useStore((state) => state.currentPlayerBoard);
 export const useCurrentTurn = () => useStore((state) => state.currentTurn);
 export const useGameTimer = () => useStore((state) => state.timer);
+
+// Room selectors
+export const useIsInRoom = () => useStore((state) => state.isInRoom());
+export const useIsRoomHost = () => useStore((state) => state.isRoomHost());
 
 // Action selectors for better component usage
 export const useAuthActions = () => useStore((state) => ({

@@ -3,7 +3,5 @@
  * Main lobby navigation and room management screens
  */
 
-export { default as LobbyScreen } from './LobbyScreen';
-export { default as CreateRoomScreen } from './CreateRoomScreen';
-export { default as JoinRoomScreen } from './JoinRoomScreen';
-export { default as RoomScreen } from './RoomScreen';
+export { default as HomeScreen } from './HomeScreen';
+export { default as RoomLobby } from './RoomLobby';

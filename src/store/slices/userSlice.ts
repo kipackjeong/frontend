@@ -5,6 +5,8 @@
 
 import { StateCreator } from 'zustand'
 import { apiService, AuthResponse } from '../../services/api'
+import { socketService } from '../../services/socket'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 
 // Types
 export interface User {
@@ -142,23 +144,44 @@ export const createUserSlice: StateCreator<UserSlice> = (set, get, api) => ({
     set({ isLoading: true, error: null });
     
     try {
+      // 1. Call API logout first
       await apiService.logout();
       
+      // 2. Disconnect from Socket.IO
+      socketService.disconnect();
+      
+      // 3. Clear persisted storage (critical for logout)
+      await AsyncStorage.removeItem('choseong-bingo-store');
+      
+      // 4. Clear user state
       set({ 
         user: null, 
         isLoading: false, 
         error: null 
       });
       
-      console.log('👋 User logged out');
+      console.log('👋 User logged out successfully - cleared storage and state');
     } catch (error: any) {
-      // Still clear local state even if API call fails
-      set({
-        user: null,
-        isLoading: false,
-        error: null,
-      });
-      console.warn('⚠️ Logout API failed, but cleared local state:', error.message);
+      // Still clear local state and disconnect socket even if API call fails
+      try {
+        socketService.disconnect();
+        await AsyncStorage.removeItem('choseong-bingo-store');
+        set({
+          user: null,
+          isLoading: false,
+          error: null,
+        });
+        console.warn('⚠️ Logout API failed, but cleared local state and storage:', error.message);
+      } catch (storageError) {
+        console.error('⚠️ Failed to clear storage during logout:', storageError);
+        // Still clear in-memory state even if storage fails
+        socketService.disconnect();
+        set({
+          user: null,
+          isLoading: false,
+          error: null,
+        });
+      }
     }
   },
 

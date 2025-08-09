@@ -1,93 +1,79 @@
-/**
- * Reusable Card component for consistent container styling
- */
-
 import React from 'react';
-import {
-  View,
-  TouchableOpacity,
-  StyleSheet,
-  ViewStyle,
-} from 'react-native';
-import { CardProps } from '../../types';
+import { View, StyleSheet, ViewStyle } from 'react-native';
 
-const Card: React.FC<CardProps> = ({
-  children,
-  variant = 'default',
-  padding = 'medium',
-  onPress,
-}) => {
-  const containerStyle: ViewStyle[] = [
-    styles.base,
-    styles[variant],
-    styles[`${padding}Padding`],
-  ];
+interface CardProps {
+    children: React.ReactNode;
+    style?: ViewStyle;
+    className?: string;
+}
 
-  if (onPress) {
+interface CardContentProps {
+    children: React.ReactNode;
+    style?: ViewStyle;
+}
+
+interface CardHeaderProps {
+    children: React.ReactNode;
+    style?: ViewStyle;
+}
+
+interface CardTitleProps {
+    children: React.ReactNode;
+    style?: ViewStyle;
+}
+
+export function Card({ children, style }: CardProps) {
     return (
-      <TouchableOpacity
-        style={containerStyle}
-        onPress={onPress}
-        activeOpacity={0.8}
-      >
-        {children}
-      </TouchableOpacity>
+        <View style={[styles.card, style]}>
+            {children}
+        </View>
     );
-  }
+}
 
-  return (
-    <View style={containerStyle}>
-      {children}
-    </View>
-  );
-};
+export function CardContent({ children, style }: CardContentProps) {
+    return (
+        <View style={[styles.cardContent, style]}>
+            {children}
+        </View>
+    );
+}
+
+export function CardHeader({ children, style }: CardHeaderProps) {
+    return (
+        <View style={[styles.cardHeader, style]}>
+            {children}
+        </View>
+    );
+}
+
+export function CardTitle({ children, style }: CardTitleProps) {
+    return (
+        <View style={[styles.cardTitle, style]}>
+            {children}
+        </View>
+    );
+}
 
 const styles = StyleSheet.create({
-  base: {
-    borderRadius: 16,
-    backgroundColor: '#FFFFFF',
-  },
-
-  // Variants
-  default: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 0,
-  },
-
-  elevated: {
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
+    card: {
+        backgroundColor: '#ffffff',
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(45, 32, 22, 0.08)',
+        shadowColor: '#2d2016',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
+        elevation: 4,
     },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4, // Android shadow
-  },
-
-  outline: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E5EA',
-  },
-
-  // Padding variants
-  nonePadding: {
-    padding: 0,
-  },
-
-  smallPadding: {
-    padding: 12,
-  },
-
-  mediumPadding: {
-    padding: 16,
-  },
-
-  largePadding: {
-    padding: 24,
-  },
+    cardContent: {
+        padding: 16,
+    },
+    cardHeader: {
+        padding: 16,
+        paddingBottom: 8,
+    },
+    cardTitle: {
+        // Title styling handled by parent component
+    },
 });
-
-export default Card;

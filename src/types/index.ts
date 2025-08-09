@@ -29,7 +29,7 @@ export interface Player {
   username: string;
   isHost: boolean;
   isReady: boolean;
-  avatarUrl?: string;
+  avatar: string;
   boardCompleted: boolean;
 }
 
@@ -99,7 +99,7 @@ export interface SocketEvents {
   'vote-choseong': { roomId: string; choseongId: string; userId: string };
   'submit-board': { roomId: string; board: BingoBoard };
   'call-word': { roomId: string; word: string; userId: string };
-  
+
   // Server -> Client
   'room-updated': Room;
   'game-started': { choseongPairs: ChoseongPair[] };

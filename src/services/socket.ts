@@ -5,6 +5,7 @@
 import { io, Socket } from 'socket.io-client';
 import { useStore } from '../store';
 import { SocketEvents, Room, ChoseongPair, BingoLine } from '../types';
+import logger from '../utils/logger';
 
 class SocketService {
   private socket: Socket | null = null;
@@ -125,12 +126,12 @@ class SocketService {
     this.socket.on('disconnect', (reason) => {
       this.connectionState = 'disconnected';
       console.log('🔌 Socket.IO disconnected:', reason);
-      
+
       if (reason === 'io server disconnect') {
         // Server initiated disconnect - don't reconnect
         return;
       }
-      
+
       this.handleReconnection();
     });
 
@@ -219,7 +220,7 @@ class SocketService {
     const delay = Math.pow(2, this.reconnectAttempts) * 1000; // Exponential backoff
 
     console.log(`🔄 Attempting reconnection ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay}ms`);
-    
+
     setTimeout(() => {
       if (this.socket && !this.socket.connected) {
         this.socket.connect();
@@ -314,6 +315,7 @@ class SocketService {
       console.warn('⚠️ Socket not connected');
       return;
     }
+    logger.debug(`📍 emit ${event} with data: \n${data}`);
     if (callback) {
       this.socket?.emit(event, data, callback);
     } else {
@@ -329,7 +331,25 @@ class SocketService {
       console.warn('⚠️ Socket not initialized');
       return;
     }
+
+    // 🔍 DEBUG: Log all event registrations, especially voting events
+    if (event.includes('voting')) {
+      console.log('📋 [SOCKET SERVICE] Registering voting event listener:', event, 'Socket connected:', this.socket.connected);
+    }
+
     this.socket.on(event, callback);
+
+    // 🧪 TEST: Add a wrapper to see if events are actually received at socket level
+    if (event.includes('voting')) {
+      const debugWrapper = (...args: any[]) => {
+        console.log('🎯 [SOCKET LEVEL] Raw voting event received:', event, args);
+        callback(...args);
+      };
+
+      // Remove the original and add the debug wrapper
+      this.socket.off(event, callback);
+      this.socket.on(event, debugWrapper);
+    }
   }
 
   /**
@@ -343,6 +363,46 @@ class SocketService {
     this.socket.off(event, callback);
   }
 
+  // PreGame methods
+  /**
+   * Join PreGame phase for a room
+   */
+  joinPreGame(roomId: string, consonant: string): void {
+    if (!this.isConnected()) {
+      console.warn('⚠️ Socket not connected');
+      return;
+    }
+
+    console.log('🎯 Joining PreGame phase:', roomId, consonant);
+    this.socket?.emit('pregame:join', { roomId, consonant });
+  }
+
+  /**
+   * Update player progress in PreGame (cells completed)
+   */
+  updatePreGameProgress(roomId: string, cellsCompleted: number, boardData?: any): void {
+    if (!this.isConnected()) {
+      console.warn('⚠️ Socket not connected');
+      return;
+    }
+
+    console.log('📊 Updating PreGame progress:', cellsCompleted, '/25 cells');
+    this.socket?.emit('pregame:update_progress', { roomId, cellsCompleted, boardData });
+  }
+
+  /**
+   * Leave PreGame phase
+   */
+  leavePreGame(roomId: string): void {
+    if (!this.isConnected()) {
+      console.warn('⚠️ Socket not connected');
+      return;
+    }
+
+    console.log('🚪 Leaving PreGame phase:', roomId);
+    this.socket?.emit('pregame:leave', { roomId });
+  }
+
   /**
    * Mock server events for development/testing
    */
@@ -350,37 +410,118 @@ class SocketService {
     if (!__DEV__) return;
 
     console.log('🧪 Starting mock server event simulation');
-
-    // Simulate room updates
-    setTimeout(() => {
-      const mockRoom: Room = {
-        id: 'mock-room',
-        code: 'MOCK01',
-        hostId: 'user-1',
-        players: [
-          { id: 'user-1', username: 'Player1', isHost: true, isReady: true, boardCompleted: false },
-          { id: 'user-2', username: 'Player2', isHost: false, isReady: true, boardCompleted: false },
-        ],
-        status: 'lobby',
-        languageMode: 'korean',
-        maxPlayers: 6,
-        createdAt: new Date(),
-      };
-
-      console.log('🎭 Mock: Simulating room update');
-      useStore.getState().updateRoom(mockRoom);
-    }, 2000);
-
     // Simulate game start
     setTimeout(() => {
-      console.log('🎭 Mock: Simulating game start');
-      const mockChoseongPairs: ChoseongPair[] = [
-        { id: 'pair-1', korean: 'ㄱㄴ', english: 'GN', votes: 0, votedBy: [] },
-        { id: 'pair-2', korean: 'ㄷㅁ', english: 'DM', votes: 1, votedBy: ['user-1'] },
-      ];
-      
       useStore.getState().setGameStatus('voting');
     }, 5000);
+  }
+
+  // 🎯 PREGAME BOARD STATUS METHODS
+
+  /**
+   * Update pregame board status (optimized to reduce socket calls)
+   */
+  updatePregameBoardStatus(
+    roomId: string,
+    playerId: string,
+    cellsCompleted: number,
+    totalCells: number = 25,
+    isComplete: boolean = false,
+    boardData?: any
+  ): Promise<{ success: boolean; message?: string }> {
+    return new Promise((resolve) => {
+      if (!this.socket || !this.isConnected()) {
+        resolve({ success: false, message: 'Socket not connected' });
+        return;
+      }
+
+      this.socket.emit('pregame:board_update', {
+        roomId,
+        playerId,
+        cellsCompleted,
+        totalCells,
+        isComplete,
+        boardData
+      }, (response: any) => {
+        resolve(response || { success: true });
+      });
+    });
+  }
+
+  /**
+   * Set pregame ready status
+   */
+  setPreGameReady(
+    roomId: string,
+    isReady: boolean,
+    boardData?: {
+      board: any[][];
+      completedCells: number;
+      timestamp: string;
+      playerId: string;
+      consonant: string;
+    }
+  ): Promise<{ success: boolean; message?: string }> {
+    return new Promise((resolve) => {
+      if (!this.socket || !this.isConnected()) {
+        resolve({ success: false, message: 'Socket not connected' });
+        return;
+      }
+
+      this.socket.emit('pregame:set_ready', {
+        roomId,
+        isReady,
+        boardData
+      }, (response: any) => {
+        resolve(response || { success: true });
+      });
+    });
+  }
+
+  /**
+   * Request current pregame status of all players
+   */
+  requestPregameStatus(roomId: string): Promise<{ success: boolean; message?: string }> {
+    return new Promise((resolve) => {
+      if (!this.socket || !this.isConnected()) {
+        resolve({ success: false, message: 'Socket not connected' });
+        return;
+      }
+
+      this.socket.emit('pregame:request_status', roomId, (response: any) => {
+        resolve(response || { success: true });
+      });
+    });
+  }
+
+  /**
+   * Share current pregame board status
+   */
+  sharePregameStatus(
+    roomId: string,
+    playerId: string,
+    cellsCompleted: number,
+    totalCells: number,
+    isReady: boolean,
+    isComplete: boolean
+  ): Promise<{ success: boolean; message?: string }> {
+    return new Promise((resolve) => {
+      if (!this.socket || !this.isConnected()) {
+        resolve({ success: false, message: 'Socket not connected' });
+        return;
+      }
+
+      this.socket.emit('pregame:share_status', {
+        roomId,
+        playerId,
+        cellsCompleted,
+        totalCells,
+        isReady,
+        isComplete
+      }, (response: any) => {
+        resolve(response || { success: true });
+      });
+    });
   }
 }
 

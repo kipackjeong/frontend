@@ -2,25 +2,18 @@ import React from 'react';
 import { View, Text, StyleSheet, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Icon from 'react-native-vector-icons/Feather';
+import { Player } from '../../types';
 
 interface PlayerCardProps {
-    player: {
-        id: string;
-        name: string;
-        avatar?: string;
-        isHost: boolean;
-        isReady: boolean;
-    };
+    player: Player;
 }
 
 export function PlayerCard({ player }: PlayerCardProps) {
-    const readyProgress = player.isReady ? 100 : 65;
-    const playerScore = Math.floor(Math.random() * 50) + 10;
 
     return (
         <View style={styles.container}>
             {/* Gentle background for ready players */}
-            {player.isReady && (
+            {(player.isHost || player.isReady) && (
                 <LinearGradient
                     colors={['rgba(34, 197, 94, 0.05)', 'rgba(16, 185, 129, 0.05)']}
                     style={styles.readyBackground}
@@ -35,82 +28,41 @@ export function PlayerCard({ player }: PlayerCardProps) {
                             <Image source={{ uri: player.avatar }} style={styles.avatarImage} />
                         ) : (
                             <Text style={styles.avatarText}>
-                                {player.name.slice(0, 2).toUpperCase()}
+                                {player.username?.slice(0, 2).toUpperCase()}
                             </Text>
                         )}
                     </View>
-
-                    {/* Score badge */}
-                    <LinearGradient
-                        colors={['#f59e0b', '#eab308']}
-                        style={styles.scoreBadge}
-                    >
-                        <Text style={styles.scoreText}>{playerScore}</Text>
-                    </LinearGradient>
                 </View>
 
                 {/* Player info */}
                 <View style={styles.playerInfo}>
                     <View style={styles.nameRow}>
                         <Text style={styles.playerName} numberOfLines={1}>
-                            {player.name}
+                            {player.username}
                         </Text>
-                        {player.isHost && (
-                            <View style={styles.hostContainer}>
-                                <Icon name="award" size={16} color="#f59e0b" />
-                                <View style={styles.hostBadge}>
-                                    <Text style={styles.hostText}>HOST</Text>
-                                </View>
-                            </View>
-                        )}
-                    </View>
-
-                    {/* Status and progress */}
-                    <View style={styles.statusContainer}>
-                        <View style={styles.statusRow}>
-                            <View style={[
-                                styles.statusBadge,
-                                player.isReady ? styles.readyStatusBadge : styles.waitingStatusBadge
-                            ]}>
-                                <Icon
-                                    name={player.isReady ? "check-circle" : "clock"}
-                                    size={12}
-                                    color={player.isReady ? "#16a34a" : "#f59e0b"}
-                                />
-                                <Text style={[
-                                    styles.statusText,
-                                    player.isReady ? styles.readyStatusText : styles.waitingStatusText
+                        {/* Status */}
+                        <View style={styles.statusContainer}>
+                            <View style={styles.statusRow}>
+                                <View style={[
+                                    styles.statusBadge,
+                                    (player.isHost || player.isReady) ? styles.readyStatusBadge : styles.waitingStatusBadge
                                 ]}>
-                                    {player.isReady ? "Ready to Play" : "Thinking..."}
-                                </Text>
-                            </View>
-
-                            {/* Player stats */}
-                            <View style={styles.statsContainer}>
-                                <Icon name="book-open" size={12} color="#6b5b47" />
-                                <Text style={styles.statsText}>{playerScore} pts</Text>
-                            </View>
-                        </View>
-
-                        {/* Progress bar */}
-                        <View style={styles.progressBarContainer}>
-                            <View style={styles.progressBarBackground}>
-                                <LinearGradient
-                                    colors={player.isReady ? ['#22c55e', '#10b981'] : ['#f59e0b', '#eab308']}
-                                    style={[styles.progressBar, { width: `${readyProgress}%` }]}
-                                    start={{ x: 0, y: 0 }}
-                                    end={{ x: 1, y: 0 }}
-                                />
+                                    <Icon
+                                        name={player.isHost ? "award" : player.isReady ? "check-circle" : "clock"}
+                                        size={12}
+                                        color={player.isHost || player.isReady ? "#16a34a" : "#f59e0b"}
+                                    />
+                                    <Text style={[
+                                        styles.statusText,
+                                        player.isHost || player.isReady ? styles.readyStatusText : styles.waitingStatusText
+                                    ]}>
+                                        {player.isHost ? "Host" : player.isReady ? "Ready" : "Not Ready"}
+                                    </Text>
+                                </View>
                             </View>
                         </View>
                     </View>
                 </View>
-
-                {/* Status indicator */}
-                <View style={[
-                    styles.statusIndicator,
-                    player.isReady ? styles.readyIndicator : styles.waitingIndicator
-                ]} />
             </View>
         </View>
     );
@@ -264,19 +216,6 @@ const styles = StyleSheet.create({
     statsText: {
         color: '#6b5b47',
         fontSize: 12,
-    },
-    progressBarContainer: {
-        width: '100%',
-    },
-    progressBarBackground: {
-        height: 8,
-        backgroundColor: '#f5f1eb',
-        borderRadius: 4,
-        overflow: 'hidden',
-    },
-    progressBar: {
-        height: '100%',
-        borderRadius: 4,
     },
     statusIndicator: {
         width: 12,

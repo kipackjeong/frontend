@@ -3,23 +3,18 @@ import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Icon from 'react-native-vector-icons/Feather';
 import { PlayerCard } from './PlayerCard';
-
-interface Player {
-    id: string;
-    name: string;
-    avatar?: string;
-    isHost: boolean;
-    isReady: boolean;
-}
+import { Player } from '../../types';
 
 interface PlayerListProps {
     players: Player[];
     maxPlayers: number;
+    minPlayers: number;
 }
 
-export function PlayerList({ players, maxPlayers }: PlayerListProps) {
-    const emptySlots = maxPlayers - players.length;
-    const readyCount = players.filter(p => p.isReady).length;
+export function PlayerList({ players, maxPlayers, minPlayers }: PlayerListProps) {
+    // Show at least minPlayers slots, but expand up to maxPlayers based on actual players
+    // const slotsToShow = Math.max(minPlayers, Math.min(maxPlayers, players.length + 2));
+    // const emptySlots = slotsToShow - players.length;
 
     return (
         <View style={styles.container}>
@@ -33,37 +28,10 @@ export function PlayerList({ players, maxPlayers }: PlayerListProps) {
 
                     <View style={styles.statsContainer}>
                         <View style={styles.statItem}>
-                            <Icon name="check-circle" size={16} color="#22c55e" />
-                            <Text style={styles.readyCount}>{readyCount}</Text>
-                            <Text style={styles.statText}>ready</Text>
-                        </View>
-
-                        <View style={styles.statItem}>
                             <Icon name="book-open" size={16} color="#8b4513" />
-                            <Text style={styles.statText}>{players.length}/{maxPlayers} joined</Text>
+                            <Text style={styles.statText}> Need {minPlayers - players.length} more to start</Text>
                         </View>
                     </View>
-                </View>
-            </View>
-
-            {/* Player readiness indicator */}
-            <View style={styles.readinessSection}>
-                <View style={styles.readinessHeader}>
-                    <Text style={styles.readinessLabel}>Game Readiness</Text>
-                    <Text style={styles.readinessPercentage}>
-                        {Math.round((readyCount / players.length) * 100)}%
-                    </Text>
-                </View>
-                <View style={styles.readinessBarContainer}>
-                    <LinearGradient
-                        colors={['#8b4513', '#228b22']}
-                        style={[
-                            styles.readinessBar,
-                            { width: `${(readyCount / players.length) * 100}%` }
-                        ]}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 0 }}
-                    />
                 </View>
             </View>
 
@@ -75,7 +43,7 @@ export function PlayerList({ players, maxPlayers }: PlayerListProps) {
                     </View>
                 ))}
 
-                {/* Empty slots */}
+                {/* Empty slots
                 {Array.from({ length: emptySlots }).map((_, index) => (
                     <View key={`empty-${index}`} style={styles.emptySlot}>
                         <View style={styles.emptySlotContent}>
@@ -92,7 +60,7 @@ export function PlayerList({ players, maxPlayers }: PlayerListProps) {
                             </View>
                         </View>
                     </View>
-                ))}
+                ))} */}
             </ScrollView>
         </View>
     );
@@ -130,41 +98,9 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: 4,
     },
-    readyCount: {
-        color: '#22c55e',
-        fontSize: 14,
-        fontWeight: '600',
-    },
     statText: {
         color: '#6b5b47',
         fontSize: 14,
-    },
-    readinessSection: {
-        gap: 8,
-    },
-    readinessHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-    },
-    readinessLabel: {
-        color: '#6b5b47',
-        fontSize: 14,
-    },
-    readinessPercentage: {
-        color: '#8b4513',
-        fontSize: 14,
-        fontWeight: '600',
-    },
-    readinessBarContainer: {
-        height: 8,
-        backgroundColor: '#f5f1eb',
-        borderRadius: 4,
-        overflow: 'hidden',
-    },
-    readinessBar: {
-        height: '100%',
-        borderRadius: 4,
     },
     playersContainer: {
         maxHeight: 400,

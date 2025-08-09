@@ -4,9 +4,11 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { useStore } from './src/store';
 import { LoginScreen, SignupScreen } from './src/screens/auth';
-import { LobbyScreen, CreateRoomScreen, JoinRoomScreen, RoomScreen } from './src/screens/lobby';
+import { HomeScreen, RoomLobby } from './src/screens/lobby';
+import { VotingScreen, PreGameBoardScreen } from './src/screens/game';
 import { socketService } from './src/services';
 import { apiService } from './src/services/api';
+
 
 // Create Stack Navigator
 const Stack = createStackNavigator();
@@ -98,24 +100,24 @@ export default function App() {
           // Authenticated screens
           <>
             <Stack.Screen
-              name="LobbyScreen"
-              component={LobbyScreen}
+              name="HomeScreen"
+              component={HomeScreen}
               options={{ title: '\ucd08\uc131\ube59\uace0' }}
             />
             <Stack.Screen
-              name="CreateRoomScreen"
-              component={CreateRoomScreen}
-              options={{ title: '\ubc29 \ub9cc\ub4e4\uae30' }}
+              name="RoomLobby"
+              component={RoomLobby}
+              options={{ title: '대기실' }}
             />
             <Stack.Screen
-              name="JoinRoomScreen"
-              component={JoinRoomScreen}
-              options={{ title: '\ubc29 \ucc38\uc5ec\ud558\uae30' }}
+              name="VotingScreen"
+              component={VotingScreen}
+              options={{ title: '\ud22c\ud45c' }}
             />
             <Stack.Screen
-              name="RoomScreen"
-              component={RoomScreen}
-              options={{ title: '\ub300\uae30\uc2e4' }}
+              name="PreGameBoardScreen"
+              component={PreGameBoardScreen}
+              options={{ title: '\ubcf4\ub4dc \ub9cc\ub4e4\uae30' }}
             />
           </>
         ) : (
@@ -134,8 +136,10 @@ export default function App() {
           </>
         )}
       </Stack.Navigator>
+
+
+
       <StatusBar style="auto" />
     </NavigationContainer>
   );
 }
-
