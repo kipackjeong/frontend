@@ -147,7 +147,7 @@ export function VotingScreen() {
         logger.debug(LogAction.SOCKET_JOIN_ROOM, `User ${user?.id} joining room channel: room:${roomId}`);
         logger.debug(LogAction.SOCKET_CONNECT, `Socket connected: ${socketService.isConnected()}`);
         logger.debug(LogAction.DEBUG_TEST, `Exact roomId being used: "${roomId}" (type: ${typeof roomId})`);
-        logger.debug(LogAction.DEBUG_TEST, `Route params:`, route.params);
+        logger.debug(LogAction.DEBUG_TEST, `Route params: ${JSON.stringify(route.params)}`);
         logger.debug(LogAction.DEBUG_TEST, `VotingSession room_id: "${votingSession.room_id}" (type: ${typeof votingSession.room_id})`);
 
         // Verify room IDs match

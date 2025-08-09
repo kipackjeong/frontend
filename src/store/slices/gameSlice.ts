@@ -38,9 +38,9 @@ const mockChoseongPairs: ChoseongPair[] = [
 ];
 
 const mockPlayers: Player[] = [
-  { id: 'user-1', username: 'GameMaster', isHost: true, isReady: true, boardCompleted: false },
-  { id: 'user-2', username: 'BingoExpert', isHost: false, isReady: false, boardCompleted: false },
-  { id: 'user-3', username: 'TestPlayer', isHost: false, isReady: false, boardCompleted: false },
+  { id: 'user-1', username: 'GameMaster', avatar: '👑', isHost: true, isReady: true, boardCompleted: false },
+  { id: 'user-2', username: 'BingoExpert', avatar: '🎯', isHost: false, isReady: false, boardCompleted: false },
+  { id: 'user-3', username: 'TestPlayer', avatar: '🧪', isHost: false, isReady: false, boardCompleted: false },
 ];
 
 export const createGameSlice: StateCreator<GameSlice> = (set, get, api) => ({
@@ -106,7 +106,7 @@ export const createGameSlice: StateCreator<GameSlice> = (set, get, api) => ({
           hostId: 'user-1',
           players: [
             ...mockPlayers.slice(0, 2),
-            { id: playerId, username: 'NewPlayer', isHost: false, isReady: false, boardCompleted: false }
+            { id: playerId, username: 'NewPlayer', avatar: '👤', isHost: false, isReady: false, boardCompleted: false }
           ],
           status: 'lobby',
           languageMode: 'korean',
@@ -122,7 +122,7 @@ export const createGameSlice: StateCreator<GameSlice> = (set, get, api) => ({
         // Add player to existing room
         const updatedPlayers = [
           ...room.players,
-          { id: playerId, username: 'NewPlayer', isHost: false, isReady: false, boardCompleted: false }
+          { id: playerId, username: 'NewPlayer', avatar: '👤', isHost: false, isReady: false, boardCompleted: false }
         ];
         
         set({
