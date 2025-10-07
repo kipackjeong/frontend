@@ -43,19 +43,17 @@ export const createTurnSlice: StateCreator<TurnSlice> = (set, get, api) => {
 
     // Actions
     initializeTurns: (playerIds: string[]) => {
-      // Randomize turn order
-      const shuffledIds = [...playerIds].sort(() => Math.random() - 0.5);
-      
+      // Deterministic order provided by server (e.g., confirmed order)
+      const order = [...playerIds];
       set({
-        turnOrder: shuffledIds,
+        turnOrder: order,
         turnHistory: [],
         currentTurn: null,
       });
-      
-      console.log('✅ Turn order initialized:', shuffledIds);
+      console.log('✅ Turn order initialized (deterministic):', order);
     },
 
-    startTurn: (playerId: string, timeLimit: number = 30) => {
+    startTurn: (playerId: string, timeLimit: number = 10) => {
       const { turnOrder } = get();
       
       if (!turnOrder.includes(playerId)) {

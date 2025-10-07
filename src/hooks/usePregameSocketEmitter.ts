@@ -2,7 +2,7 @@ import { useRef, useCallback } from 'react';
 import { socketService } from '../services/socket';
 import type { BingoCell } from './useBingoBoard';
 
-interface UseSocketUpdatesProps {
+interface UsePregameSocketEmitterProps {
     user: any;
     roomId: string;
     allCellsValidAndFilled: boolean;
@@ -10,20 +10,20 @@ interface UseSocketUpdatesProps {
     currentConsonant: string;
 }
 
-interface UseSocketUpdatesReturn {
+interface UsePregameSocketEmitterReturn {
     sendBoardProgressUpdate: (cellsCompleted: number, force?: boolean) => void;
-    sendCompletionStatus: (isReady: boolean) => void;
+    sendCompletionStatus: (isReady: boolean) => Promise<{ success: boolean; message?: string }>;
 }
 
 const SOCKET_UPDATE_DEBOUNCE_MS = 2000; // 2 seconds debounce for board updates
 
-export function useSocketUpdates({
+export function usePregameSocketEmitter({
     user,
     roomId,
     allCellsValidAndFilled,
     bingoBoard,
     currentConsonant,
-}: UseSocketUpdatesProps): UseSocketUpdatesReturn {
+}: UsePregameSocketEmitterProps): UsePregameSocketEmitterReturn {
     // Socket update optimization - debounce board updates
     const socketUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const lastSocketUpdate = useRef({ cellsCompleted: 0, timestamp: 0 });
@@ -74,12 +74,21 @@ export function useSocketUpdates({
                 socketConnected: socketService.isConnected()
             });
 
+            const boardData = {
+                board: bingoBoard,
+                completedCells: cellsCompleted,
+                timestamp: new Date().toISOString(),
+                playerId: user.id,
+                consonant: currentConsonant,
+            };
+
             socketService.updatePregameBoardStatus(
                 roomId,
                 user.id,
                 cellsCompleted,
                 25,
-                isComplete
+                isComplete,
+                boardData
             ).then((response: { success: boolean; message?: string }) => {
                 if (response.success) {
                     console.log(`✅ [AVATAR_SYNC] Successfully broadcasted progress: ${cellsCompleted}/25 cells`);
@@ -102,24 +111,27 @@ export function useSocketUpdates({
         if (user?.id && roomId) {
             const boardData = {
                 board: bingoBoard,
-                completedCells: bingoBoard.flat().filter(cell => cell.word !== '').length,
+                completedCells: bingoBoard.flat().filter(cell => (cell.word || (cell as any).previousWord) !== '').length,
                 timestamp: new Date().toISOString(),
                 playerId: user.id,
                 consonant: currentConsonant
             };
 
-            socketService.setPreGameReady(roomId, isReady, boardData)
+            return socketService.setPreGameReady(roomId, isReady, boardData)
                 .then((response: { success: boolean; message?: string }) => {
                     if (response.success) {
                         console.log(`✅ [SOCKET] Ready status updated: ${isReady}`);
                     } else {
                         console.error('❌ [SOCKET] Failed to update ready status:', response.message);
                     }
+                    return response;
                 })
                 .catch((error: any) => {
                     console.error('❌ [SOCKET] Ready status error:', error);
+                    return { success: false, message: String(error) };
                 });
         }
+        return Promise.resolve({ success: false, message: 'Missing user or roomId' });
     }, [user?.id, roomId, bingoBoard, currentConsonant]);
 
     return {

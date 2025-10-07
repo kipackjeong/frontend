@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useMemo } from 'react';
+import React, { useEffect, useRef, useMemo, useState } from 'react';
 import {
     View,
     Text,
@@ -8,6 +8,7 @@ import {
     Animated,
     StyleSheet,
     Dimensions,
+    TouchableOpacity,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 // @ts-ignore - react-native-vector-icons types not available
@@ -24,9 +25,10 @@ import { BingoGrid, PlayerAvatarRow, TimerDisplay } from '../../components/game'
 
 // Custom Hooks
 import { useBingoBoard } from '../../hooks/useBingoBoard';
-import { useSocketEvents } from '../../hooks/useSocketEvents';
+import { usePregameSocketListener } from '../../hooks/usePregameSocketListener';
 import { useTimer } from '../../hooks/useTimer';
-import { useSocketUpdates } from '../../hooks/useSocketUpdates';
+import { usePregameSocketEmitter } from '../../hooks/usePregameSocketEmitter';
+import { socketService } from '../../services/socket';
 
 type PreGameBoardScreenNavigationProp = any;
 
@@ -36,10 +38,10 @@ export function PreGameBoardScreen() {
     const navigation = useNavigation<PreGameBoardScreenNavigationProp>();
     const route = useRoute();
 
-    // Get room and user data from store
+    // Get room and user data from storeBIN
     const { user } = useStore();
     const { currentRoom } = useStore();
-    
+
     // Get route parameters
     const { roomId, winnerConsonant, roomData } = (route.params as any) || {};
     const currentConsonant = winnerConsonant || 'ㄱ';
@@ -49,6 +51,9 @@ export function PreGameBoardScreen() {
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const slideAnim = useRef(new Animated.Value(50)).current;
     const scaleAnim = useRef(new Animated.Value(0.8)).current;
+
+    // Board completion confirmation state
+    const [isReadyConfirmed, setIsReadyConfirmed] = useState(false);
 
     // Custom hooks for board state and socket events using correct interfaces
     const {
@@ -63,20 +68,23 @@ export function PreGameBoardScreen() {
         handleCellBlur,
         getCellStyle,
         handleTimerExpired,
-        isDuplicateWord
+        isDuplicateWord,
+        setConfirmedSnapshotFromBoard,
+        setPostConfirmEditMode,
+        postConfirmEditMode,
     } = useBingoBoard(currentConsonant, styles);
 
     // Socket events hook for player synchronization
-    const { players } = useSocketEvents({ roomId, currentRoom, user });
+    const { players } = usePregameSocketListener({ roomId, currentRoom, user });
 
     // Timer hook
-    const { timeLeft, formatTime } = useTimer({ 
-        initialTime: BOARD_TIME_LIMIT, 
+    const { timeLeft, formatTime } = useTimer({
+        initialTime: BOARD_TIME_LIMIT,
         onTimerExpired: handleTimerExpired
     });
 
     // Socket updates hook
-    const { sendBoardProgressUpdate, sendCompletionStatus } = useSocketUpdates({
+    const { sendBoardProgressUpdate, sendCompletionStatus } = usePregameSocketEmitter({
         user,
         roomId,
         allCellsValidAndFilled,
@@ -85,6 +93,39 @@ export function PreGameBoardScreen() {
     });
 
     const totalCells = 25;
+
+    // When the timer expires, request server to start game (server is authoritative)
+    useEffect(() => {
+        if (timeLeft === 0 && roomId) {
+            (async () => {
+                try {
+                    // A) Ensure final snapshot is sent before requesting game start
+                    console.log('⏰ [PREGAME] Timer expired. Sending final snapshot before game start...');
+                    const readyRes = await sendCompletionStatus(true);
+                    console.log('📦 [PREGAME] Final snapshot ack:', readyRes);
+
+                    // Proceed to request game start with confirmed order (if any)
+                    const order = useStore.getState().getConfirmedOrder?.() || [];
+                    console.log('🚀 [PREGAME] Requesting game start with order:', order);
+                    socketService.requestGameStart(roomId, { reason: 'timer_expired', confirmedOrder: order });
+                } catch (e) {
+                    console.error('❌ [PREGAME] Failed to finalize snapshot or request game start:', e);
+                }
+            })();
+        }
+    }, [timeLeft, roomId, sendCompletionStatus]);
+
+    // Navigate to in-game screen when server starts game
+    useEffect(() => {
+        const onGamePhaseStarted = (data: { turnOrder: string[] }) => {
+            console.log('🎮 [NAV] Navigating to InGameBoardScreen');
+            navigation.navigate('InGameBoardScreen' as never);
+        };
+        socketService.on('game-phase-started', onGamePhaseStarted);
+        return () => {
+            socketService.off('game-phase-started', onGamePhaseStarted);
+        };
+    }, [navigation]);
 
     // Entrance animation effect
     useEffect(() => {
@@ -114,49 +155,121 @@ export function PreGameBoardScreen() {
     }, [completedCells]);
 
     const gameStatus = useMemo(() => {
-        if (allCellsValidAndFilled && !hasDuplicates) {
+        // Development override: Allow testing confirm button with minimal input
+        const devOverride = __DEV__ && completedCells >= 3; // Only need 3 cells in dev mode
+
+        if ((allCellsValidAndFilled || devOverride) && !hasDuplicates && isReadyConfirmed) {
             return 'ready';
+        } else if ((allCellsValidAndFilled || devOverride) && !hasDuplicates) {
+            return 'complete-pending-confirmation';
         } else if (completedCells > 0) {
             return 'in-progress';
         } else {
             return 'not-started';
         }
-    }, [allCellsValidAndFilled, hasDuplicates, completedCells]);
+    }, [allCellsValidAndFilled, hasDuplicates, completedCells, isReadyConfirmed]);
 
     // Send board update when progress changes
     useEffect(() => {
         sendBoardProgressUpdate(completedCells);
     }, [completedCells, sendBoardProgressUpdate]);
 
-    // Send completion status when board is complete
-    useEffect(() => {
-        if (allCellsValidAndFilled && !hasDuplicates) {
-            sendCompletionStatus(true);
-        } else {
-            sendCompletionStatus(false);
+    // NOTE: Removed problematic useEffect - React state timing causes it to run with old values
+    // Instead, we rely on immediate socket calls in handleConfirmReady for reliable status updates
+
+
+
+    const handleConfirmReady = () => {
+        console.log('🎯 [CONFIRM_READY] Button clicked - starting ready process');
+        console.log('🔍 [CONFIRM_READY] Current state BEFORE changes:', {
+            isReadyConfirmed,
+            allCellsValidAndFilled,
+            hasDuplicates,
+            completedCells,
+            devOverride: __DEV__ && completedCells >= 3
+        });
+
+        // Complete the bingoBoard with current state
+        const finalBoard = bingoBoard.map(row =>
+            row.map(cell => ({
+                ...cell,
+                word: cell.word || cell.previousWord || '',
+                isValid: cell.isValid || !!cell.previousWord, // Accept previous word as valid
+                isValidating: false,
+            }))
+        );
+
+        setBingoBoard(finalBoard);
+        // Capture immutable snapshot on first confirm only
+        setConfirmedSnapshotFromBoard(finalBoard);
+        // Ensure edit mode is off when confirming
+        setPostConfirmEditMode(false);
+
+        // Set as confirmed ready
+        console.log('🔄 [CONFIRM_READY] Setting isReadyConfirmed to TRUE');
+        setIsReadyConfirmed(true);
+
+        // Log what the state SHOULD be after the update
+        console.log('🔍 [CONFIRM_READY] Expected state AFTER changes:', {
+            isReadyConfirmed: true, // This is what we just set
+            allCellsValidAndFilled,
+            hasDuplicates,
+            completedCells,
+            devOverride: __DEV__ && completedCells >= 3,
+            shouldTriggerUseEffect: true
+        });
+
+        // IMMEDIATE: Send completion status right away (don't wait for useEffect)
+        console.log('🚀 [CONFIRM_READY] About to call sendCompletionStatus(true)');
+        try {
+            sendCompletionStatus(true)
+                .then((res) => {
+                    console.log('✅ [CONFIRM_READY] sendCompletionStatus ack:', res);
+                })
+                .catch((error) => {
+                    console.error('❌ [CONFIRM_READY] sendCompletionStatus error:', error);
+                });
+        } catch (error) {
+            console.error('❌ [CONFIRM_READY] sendCompletionStatus threw:', error);
         }
-    }, [allCellsValidAndFilled, hasDuplicates, sendCompletionStatus]);
 
+        // IMMEDIATE: Force board progress update with completion
+        console.log('🚀 [CONFIRM_READY] About to call sendBoardProgressUpdate(25, true)');
+        try {
+            const progressResult = sendBoardProgressUpdate(25, true); // Force send with 25 cells completed
+            console.log('✅ [CONFIRM_READY] sendBoardProgressUpdate called, result:', progressResult);
+        } catch (error) {
+            console.error('❌ [CONFIRM_READY] sendBoardProgressUpdate error:', error);
+        }
 
+        // DEBUG: Check what the PlayerAvatarRow will receive
+        console.log('🎨 [AVATAR_DEBUG] PlayerAvatarRow will receive:', {
+            isCurrentUserReady: true, // This is what we're passing now
+            completedCells,
+            currentUserId: user?.id
+        });
 
-    const handleDone = () => {
-        if (allCellsValidAndFilled && !hasDuplicates) {
-            // Complete the bingoBoard with current state
-            const finalBoard = bingoBoard.map(row =>
-                row.map(cell => ({
-                    ...cell,
-                    word: cell.word || cell.previousWord || '',
-                    isValid: cell.isValid || !!cell.previousWord, // Accept previous word as valid
-                    isValidating: false,
-                }))
-            );
+        Alert.alert(
+            '보드 완성! 🎉',
+            '준비 완료되었습니다. 다른 플레이어들을 기다리고 있습니다.',
+            [{ text: '확인', style: 'default' }]
+        );
+    };
 
-            setBingoBoard(finalBoard);
-            
-            // Send final completion status
-            sendCompletionStatus(true);
-        } else {
-            Alert.alert('보드 미완성', '모든 칸을 올바르게 채워주세요.');
+    // Option B: explicit Edit Board control to revert readiness and allow edits again
+    const handleEditBoard = () => {
+        console.log('✏️ [EDIT_BOARD] Switching to edit mode after confirm');
+        // Enter post-confirm edit mode so invalid changes revert to confirmed snapshot per-cell
+        setPostConfirmEditMode(true);
+        // Locally mark as not ready
+        setIsReadyConfirmed(false);
+        // Broadcast unready to others
+        try {
+            sendCompletionStatus(false);
+            // Share current progress for avatars
+            sendBoardProgressUpdate(completedCells, true);
+        } catch (err) {
+            console.error('❌ [EDIT_BOARD] Failed to emit unready:', err);
         }
     };
 
@@ -217,16 +330,16 @@ export function PreGameBoardScreen() {
                             </View>
                         </View>
 
-                        {/* Player Avatars Row - Using Subcomponent */}
-                        <PlayerAvatarRow 
+                        <PlayerAvatarRow
                             players={currentRoom?.players || []}
                             playersFromState={players}
                             currentUserId={user?.id}
                             completedCells={completedCells}
+                            isCurrentUserReady={isReadyConfirmed}
                         />
 
                         {/* Timer Display - Using Subcomponent */}
-                        <TimerDisplay 
+                        <TimerDisplay
                             timeLeft={timeLeft}
                             formatTime={formatTime}
                             validCells={validCells}
@@ -234,17 +347,18 @@ export function PreGameBoardScreen() {
                         />
 
                         {/* Bingo Grid - Using Subcomponent */}
-                        <BingoGrid 
+                        <BingoGrid
                             bingoBoard={bingoBoard}
                             timeLeft={timeLeft}
+                            editable={!isReadyConfirmed}
                             getCellStyle={getCellStyle}
                             onCellChange={handleCellChange}
                             onCellFocus={handleCellFocus}
                             onCellBlur={handleCellBlur}
                         />
 
-                        {/* Action Button - Only show when board is complete */}
-                        {allCellsValidAndFilled && !hasDuplicates && (
+                        {/* Action Section - Show different content based on completion status */}
+                        {gameStatus === 'complete-pending-confirmation' && (
                             <View style={styles.actionSection}>
                                 <Card style={styles.completionCard}>
                                     <View style={styles.completionContent}>
@@ -255,17 +369,33 @@ export function PreGameBoardScreen() {
                                         <Text style={styles.completionMessage}>
                                             Great job! Your board is ready for the game.
                                         </Text>
+                                        <TouchableOpacity
+                                            style={styles.confirmButton}
+                                            onPress={handleConfirmReady}
+                                            activeOpacity={0.8}
+                                        >
+                                            <Icon name="thumbs-up" size={20} color="#FFFFFF" style={styles.buttonIcon} />
+                                            <Text style={styles.confirmButtonText}>Confirm Ready! ✅</Text>
+                                        </TouchableOpacity>
                                     </View>
                                 </Card>
                             </View>
                         )}
-
                         {/* Show completion status */}
                         {gameStatus === 'ready' && (
                             <View style={styles.completionStatusSection}>
                                 <Text style={styles.readyStatusText}>
                                     ✅ Ready to play! Waiting for other players...
                                 </Text>
+                                {/* Option B: Allow user to return to edit mode intentionally */}
+                                <TouchableOpacity
+                                    style={[styles.editButton]}
+                                    onPress={handleEditBoard}
+                                    activeOpacity={0.9}
+                                >
+                                    <Icon name="edit-3" size={18} color="#8b4513" />
+                                    <Text style={styles.editButtonText}>Edit Board</Text>
+                                </TouchableOpacity>
                             </View>
                         )}
                     </Animated.View>
@@ -866,5 +996,30 @@ const styles = StyleSheet.create({
         width: 8,
         height: 8,
         borderRadius: 4,
+        marginRight: 6,
+    },
+    // Confirmation button styles
+    confirmButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#22c55e',
+        borderRadius: 12,
+        paddingVertical: 14,
+        paddingHorizontal: 24,
+        marginTop: 16,
+        elevation: 3,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+    },
+    buttonIcon: {
+        marginRight: 8,
+    },
+    confirmButtonText: {
+        color: '#FFFFFF',
+        fontSize: 16,
+        fontWeight: '700',
     },
 });

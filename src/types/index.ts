@@ -33,6 +33,13 @@ export interface Player {
   boardCompleted: boolean;
 }
 
+// Pregame Types
+export interface PreGamePlayer extends Player {
+  cellsCompleted: number; // 0-25 cells completed during board creation phase
+  lastUpdatedAt?: number; // epoch ms for last socket update
+  readyAt?: number; // epoch ms when player first confirmed ready
+}
+
 export interface Room {
   id: string;
   code: string;
@@ -42,6 +49,18 @@ export interface Room {
   languageMode: LanguageMode;
   maxPlayers: number;
   createdAt: Date;
+}
+
+// Current room session model (used by roomSlice)
+export interface CurrentRoom {
+  id: string;
+  name: string;
+  code: string;
+  creator_id: string;
+  max_players: number;
+  status: 'waiting' | 'playing' | 'finished';
+  players: Player[];
+  joinedAt: number; // timestamp
 }
 
 export interface ChoseongPair {

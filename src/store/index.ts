@@ -10,9 +10,10 @@ import { createGameSlice, GameSlice } from './slices/gameSlice';
 import { createBoardSlice, BoardSlice } from './slices/boardSlice';
 import { createTurnSlice, TurnSlice } from './slices/turnSlice';
 import { createRoomSlice, RoomSlice } from './slices/roomSlice';
+import { createPregameSlice, PregameSlice } from './slices/pregameSlice';
 
 // Combined store interface
-export interface AppStore extends UserSlice, GameSlice, BoardSlice, TurnSlice, RoomSlice { }
+export interface AppStore extends UserSlice, GameSlice, BoardSlice, TurnSlice, RoomSlice, PregameSlice { }
 
 // Create the main store with middleware
 export const useStore = create<AppStore>()(
@@ -24,6 +25,7 @@ export const useStore = create<AppStore>()(
         ...createBoardSlice(set, get, api),
         ...createTurnSlice(set, get, api),
         ...createRoomSlice(set, get, api),
+        ...createPregameSlice(set, get, api),
       }),
       {
         name: 'choseong-bingo-store', // AsyncStorage key
@@ -50,6 +52,10 @@ export const useGameTimer = () => useStore((state) => state.timer);
 // Room selectors
 export const useIsInRoom = () => useStore((state) => state.isInRoom());
 export const useIsRoomHost = () => useStore((state) => state.isRoomHost());
+
+// Pregame selectors
+export const usePregamePlayers = () => useStore((state) => state.pregamePlayers);
+export const usePregameRoomId = () => useStore((state) => state.pregameRoomId);
 
 // Action selectors for better component usage
 export const useAuthActions = () => useStore((state) => ({
@@ -82,6 +88,16 @@ export const useTurnActions = () => useStore((state) => ({
   nextTurn: state.nextTurn,
   callWord: state.callWord,
   skipTurn: state.skipTurn,
+}));
+
+export const usePregameActions = () => useStore((state) => ({
+  initPregame: state.initPregame,
+  setPregamePlayers: state.setPregamePlayers,
+  upsertPregamePlayer: state.upsertPregamePlayer,
+  updatePlayerProgress: state.updatePlayerProgress,
+  updatePlayerReady: state.updatePlayerReady,
+  syncFromRoomPlayers: state.syncFromRoomPlayers,
+  clearPregame: state.clearPregame,
 }));
 
 // Store debugging helpers (for development only)
@@ -129,10 +145,10 @@ if (__DEV__) {
       currentTurn: state.currentTurn,
     }),
     (current, previous) => {
-      console.log('🔄 Store changed:', {
-        previous,
-        current,
-      });
+      // console.log('🔄 Store changed:', {
+      //   previous,
+      //   current,
+      // });
     }
   );
 }

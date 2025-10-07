@@ -6,7 +6,6 @@ import {
     StyleSheet,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
-import { Card, CardContent } from '../common';
 import type { BingoCell } from '../../hooks/useBingoBoard';
 
 interface BingoGridProps {
@@ -16,6 +15,7 @@ interface BingoGridProps {
     onCellChange: (rowIndex: number, colIndex: number, text: string) => void;
     onCellFocus: (rowIndex: number, colIndex: number) => void;
     onCellBlur: (rowIndex: number, colIndex: number) => void;
+    editable?: boolean;
 }
 
 const BingoGrid: React.FC<BingoGridProps> = ({
@@ -25,18 +25,19 @@ const BingoGrid: React.FC<BingoGridProps> = ({
     onCellChange,
     onCellFocus,
     onCellBlur,
+    editable = true,
 }) => {
     const inputRefs = useRef<TextInput[][]>([]);
 
     return (
         <View style={styles.boardSection}>
-            <Card style={styles.boardCard}>
-                <CardContent style={styles.boardContent}>
+            <View style={styles.boardCard}>
+                <View style={styles.boardContent}>
                     <View style={styles.bingoGrid}>
                         {bingoBoard.map((row, rowIndex) => (
                             <View key={rowIndex} style={styles.bingoRow}>
                                 {row.map((cell, colIndex) => (
-                                    <View key={cell.id} style={getCellStyle(cell)}>
+                                    <View key={cell.id} style={styles.cellContainer}>
                                         <TextInput
                                             ref={(ref) => {
                                                 if (!inputRefs.current[rowIndex]) {
@@ -57,7 +58,7 @@ const BingoGrid: React.FC<BingoGridProps> = ({
                                             placeholder=""
                                             multiline={false}
                                             textAlign="center"
-                                            editable={timeLeft > 0} // Allow editing until timer expires
+                                            editable={timeLeft > 0 && editable} // Allow editing until timer expires and not locked by confirm
                                             maxLength={10}
                                         />
 
@@ -84,8 +85,8 @@ const BingoGrid: React.FC<BingoGridProps> = ({
                             </View>
                         ))}
                     </View>
-                </CardContent>
-            </Card>
+                </View>
+            </View>
         </View>
     );
 };
@@ -95,6 +96,8 @@ const styles = StyleSheet.create({
         marginBottom: 24,
     },
     boardCard: {
+        backgroundColor: '#ffffff',
+        borderRadius: 16,
         shadowColor: '#000',
         shadowOffset: {
             width: 0,
@@ -103,6 +106,7 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.1,
         shadowRadius: 8,
         elevation: 6,
+        opacity: 1,
     },
     boardContent: {
         padding: 16,
@@ -115,6 +119,23 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         gap: 8,
         justifyContent: 'center',
+    },
+    cellContainer: {
+        width: 60,
+        height: 60,
+        backgroundColor: '#ffffff',
+        borderRadius: 12,
+        borderWidth: 2,
+        borderColor: '#8b4513',
+        justifyContent: 'center',
+        alignItems: 'center',
+        position: 'relative',
+        elevation: 4,
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 6,
+        opacity: 1,
     },
     cellInput: {
         fontSize: 14,

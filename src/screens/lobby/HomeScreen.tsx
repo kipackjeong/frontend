@@ -81,7 +81,6 @@ const HomeScreen = () => {
 
         try {
             const joinedRoom = await apiService.joinRoom(roomCodeInput.trim().toUpperCase());
-            console.log('💕 Join room api result:', joinedRoom);
 
             setCurrentRoom(joinedRoom);
             // Join the room via Socket.IO for real-time updates
@@ -110,7 +109,6 @@ const HomeScreen = () => {
         try {
             // Create room with hardcoded empty title and default max_players (6)
             const newRoom = await apiService.createRoom({ name: '' });
-            console.log('💕 newRoom:', newRoom);
 
             // Populate room store with created room data
             setCurrentRoom(newRoom);

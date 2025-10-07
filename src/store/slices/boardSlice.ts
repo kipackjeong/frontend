@@ -24,6 +24,7 @@ export interface BoardSlice {
   resetBoard: (playerId: string) => void;
   setCurrentWord: (word: string) => void;
   getAllBoards: () => BingoBoard[];
+  setInGameBoards: (frozenBoards: Record<string, string[][]>) => void;
 }
 
 // Mock Korean words for development
@@ -322,5 +323,33 @@ export const createBoardSlice: StateCreator<BoardSlice> = (set, get, api) => ({
 
   getAllBoards: () => {
     return get().boards;
+  },
+
+  // Freeze boards for in-game phase from server authoritative payload
+  setInGameBoards: (frozenBoards: Record<string, string[][]>) => {
+    const boards: BingoBoard[] = Object.entries(frozenBoards).map(([playerId, grid]) => {
+      const cells: BingoCell[][] = grid.map((row, rIdx) =>
+        row.map((word, cIdx) => ({
+          id: `${playerId}-${rIdx}-${cIdx}`,
+          word: (word || '').trim(),
+          isMarked: false,
+          isValid: true,
+          coordinates: [rIdx, cIdx],
+        }))
+      );
+      return {
+        id: `board-${playerId}`,
+        playerId,
+        cells,
+        completedLines: [],
+        isComplete: false,
+      };
+    });
+
+    // Attempt to set current player's board
+    const userId = (get() as any).user?.id;
+    const myBoard = userId ? boards.find(b => b.playerId === userId) || null : null;
+
+    set({ boards, currentPlayerBoard: myBoard });
   },
 });

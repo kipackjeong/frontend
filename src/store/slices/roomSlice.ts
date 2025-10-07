@@ -53,6 +53,11 @@ export const createRoomSlice: StateCreator<
   },
 
   clearCurrentRoom: () => {
+    // Also clear pregame state if available
+    const maybeClearPregame = (get() as any).clearPregame;
+    if (typeof maybeClearPregame === 'function') {
+      try { maybeClearPregame(); } catch {}
+    }
     set({ currentRoom: null });
   },
 

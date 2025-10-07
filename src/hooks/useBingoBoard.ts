@@ -26,6 +26,10 @@ interface UseBingoBoardReturn {
     getCellStyle: (cell: BingoCell) => any[];
     handleTimerExpired: () => void;
     isDuplicateWord: (word: string, currentRowIndex: number, currentColIndex: number) => boolean;
+    // New API for post-confirm editing
+    setConfirmedSnapshotFromBoard: (board: BingoCell[][]) => void;
+    setPostConfirmEditMode: (enabled: boolean) => void;
+    postConfirmEditMode: boolean;
 }
 
 export function useBingoBoard(currentConsonant: string, styles: any): UseBingoBoardReturn {
@@ -46,6 +50,10 @@ export function useBingoBoard(currentConsonant: string, styles: any): UseBingoBo
         }
         return board;
     });
+
+    // Immutable snapshot captured on first confirm, used for post-confirm edits fallback
+    const [confirmedSnapshot, setConfirmedSnapshot] = useState<string[][] | null>(null);
+    const [postConfirmEditMode, setPostConfirmEditMode] = useState<boolean>(false);
 
     // Debounced validation timeout ref
     const validationTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
@@ -95,35 +103,70 @@ export function useBingoBoard(currentConsonant: string, styles: any): UseBingoBo
         console.log(`🔍 Validating word: "${word}" at position ${rowIndex}-${colIndex}`);
 
         if (!word || word.trim() === '') {
-            // Empty word - clear validation state
-            setBingoBoard(prev => {
-                const newBoard = [...prev];
-                newBoard[rowIndex][colIndex] = {
-                    ...newBoard[rowIndex][colIndex],
-                    isValid: false,
-                    isValidating: false,
-                    validationError: undefined,
-                    definition: undefined,
-                };
-                return newBoard;
-            });
+            // Empty input
+            if (postConfirmEditMode && confirmedSnapshot) {
+                // Revert to confirmed snapshot for this cell only
+                const fallbackWord = confirmedSnapshot[rowIndex]?.[colIndex] ?? '';
+                setBingoBoard(prev => {
+                    const newBoard = [...prev];
+                    newBoard[rowIndex][colIndex] = {
+                        ...newBoard[rowIndex][colIndex],
+                        word: fallbackWord,
+                        isValid: true,
+                        isValidating: false,
+                        validationError: undefined,
+                        definition: undefined,
+                    };
+                    return newBoard;
+                });
+            } else {
+                // Empty word - clear validation state
+                setBingoBoard(prev => {
+                    const newBoard = [...prev];
+                    newBoard[rowIndex][colIndex] = {
+                        ...newBoard[rowIndex][colIndex],
+                        isValid: false,
+                        isValidating: false,
+                        validationError: undefined,
+                        definition: undefined,
+                    };
+                    return newBoard;
+                });
+            }
             return;
         }
 
         // Check for duplicates first
         if (isDuplicateWord(word, rowIndex, colIndex)) {
             console.log(`🔄 Duplicate word detected: "${word}"`);
-            setBingoBoard(prev => {
-                const newBoard = [...prev];
-                newBoard[rowIndex][colIndex] = {
-                    ...newBoard[rowIndex][colIndex],
-                    isValid: false,
-                    isValidating: false,
-                    validationError: 'This word is already used on the board',
-                    definition: undefined,
-                };
-                return newBoard;
-            });
+            // If editing after confirm and we have a snapshot, revert this cell to snapshot
+            if (postConfirmEditMode && confirmedSnapshot) {
+                const fallbackWord = confirmedSnapshot[rowIndex]?.[colIndex] ?? '';
+                setBingoBoard(prev => {
+                    const newBoard = [...prev];
+                    newBoard[rowIndex][colIndex] = {
+                        ...newBoard[rowIndex][colIndex],
+                        word: fallbackWord,
+                        isValid: true,
+                        isValidating: false,
+                        validationError: undefined,
+                        definition: undefined,
+                    };
+                    return newBoard;
+                });
+            } else {
+                setBingoBoard(prev => {
+                    const newBoard = [...prev];
+                    newBoard[rowIndex][colIndex] = {
+                        ...newBoard[rowIndex][colIndex],
+                        isValid: false,
+                        isValidating: false,
+                        validationError: 'This word is already used on the board',
+                        definition: undefined,
+                    };
+                    return newBoard;
+                });
+            }
             return;
         }
 
@@ -150,34 +193,66 @@ export function useBingoBoard(currentConsonant: string, styles: any): UseBingoBo
             }
 
             // Update board with validation result
-            setBingoBoard(prev => {
-                const updatedBoard = [...prev];
-                updatedBoard[rowIndex][colIndex] = {
-                    ...updatedBoard[rowIndex][colIndex],
-                    isValid: result.isValid,
-                    isValidating: false,
-                    validationError: result.error,
-                    definition: result.definition,
-                };
-                return updatedBoard;
-            });
+            if (!result.isValid && postConfirmEditMode && confirmedSnapshot) {
+                // Revert this single cell to confirmed snapshot
+                const fallbackWord = confirmedSnapshot[rowIndex]?.[colIndex] ?? '';
+                setBingoBoard(prev => {
+                    const updatedBoard = [...prev];
+                    updatedBoard[rowIndex][colIndex] = {
+                        ...updatedBoard[rowIndex][colIndex],
+                        word: fallbackWord,
+                        isValid: true,
+                        isValidating: false,
+                        validationError: undefined,
+                        definition: undefined,
+                    };
+                    return updatedBoard;
+                });
+            } else {
+                setBingoBoard(prev => {
+                    const updatedBoard = [...prev];
+                    updatedBoard[rowIndex][colIndex] = {
+                        ...updatedBoard[rowIndex][colIndex],
+                        isValid: result.isValid,
+                        isValidating: false,
+                        validationError: result.error,
+                        definition: result.definition,
+                    };
+                    return updatedBoard;
+                });
+            }
 
         } catch (error) {
             console.error('❌ Word validation failed:', error);
 
-            // Update board with error state
-            setBingoBoard(prev => {
-                const errorBoard = [...prev];
-                errorBoard[rowIndex][colIndex] = {
-                    ...errorBoard[rowIndex][colIndex],
-                    isValid: false,
-                    isValidating: false,
-                    validationError: 'Validation failed',
-                };
-                return errorBoard;
-            });
+            // Update board with error state (fallback to snapshot if editing after confirm)
+            if (postConfirmEditMode && confirmedSnapshot) {
+                const fallbackWord = confirmedSnapshot[rowIndex]?.[colIndex] ?? '';
+                setBingoBoard(prev => {
+                    const errorBoard = [...prev];
+                    errorBoard[rowIndex][colIndex] = {
+                        ...errorBoard[rowIndex][colIndex],
+                        word: fallbackWord,
+                        isValid: true,
+                        isValidating: false,
+                        validationError: undefined,
+                    };
+                    return errorBoard;
+                });
+            } else {
+                setBingoBoard(prev => {
+                    const errorBoard = [...prev];
+                    errorBoard[rowIndex][colIndex] = {
+                        ...errorBoard[rowIndex][colIndex],
+                        isValid: false,
+                        isValidating: false,
+                        validationError: 'Validation failed',
+                    };
+                    return errorBoard;
+                });
+            }
         }
-    }, [currentConsonant, isDuplicateWord]);
+    }, [currentConsonant, isDuplicateWord, postConfirmEditMode, confirmedSnapshot]);
 
     // Debounced validation to avoid too many API calls
     const debouncedValidation = useCallback((word: string, rowIndex: number, colIndex: number) => {
@@ -247,7 +322,7 @@ export function useBingoBoard(currentConsonant: string, styles: any): UseBingoBo
         if (cell.isValidating) return [styles.bingoCell, styles.validatingCell];
         if (cell.word && cell.isValid) return [styles.bingoCell, styles.validCell];
         if (cell.word && !cell.isValid) return [styles.bingoCell, styles.invalidCell];
-        return styles.bingoCell;
+        return [styles.bingoCell]; // Always return array for consistency
     }, [styles]);
 
     // Handle timer expiration - fallback editing cells to previous words
@@ -304,5 +379,12 @@ export function useBingoBoard(currentConsonant: string, styles: any): UseBingoBo
         getCellStyle,
         handleTimerExpired,
         isDuplicateWord,
+        setConfirmedSnapshotFromBoard: (board: BingoCell[][]) => {
+            // Only capture once per session
+            setConfirmedSnapshot(prev => prev ?? board.map(r => r.map(c => c.word)));
+            setPostConfirmEditMode(false);
+        },
+        setPostConfirmEditMode,
+        postConfirmEditMode,
     };
 }

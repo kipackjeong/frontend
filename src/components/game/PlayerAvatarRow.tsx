@@ -1,18 +1,14 @@
 import React from 'react';
-import {
-    View,
-    Text,
-    StyleSheet,
-} from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
-import type { Player } from '../../types';
-import type { PreGamePlayer } from '../../hooks/useSocketEvents';
+import type { Player, PreGamePlayer } from '../../types';
 
 interface PlayerAvatarRowProps {
     players: Player[];
     playersFromState: PreGamePlayer[];
     currentUserId?: string;
     completedCells: number;
+    isCurrentUserReady?: boolean; // Track local ready state
 }
 
 const PlayerAvatarRow: React.FC<PlayerAvatarRowProps> = ({
@@ -20,15 +16,32 @@ const PlayerAvatarRow: React.FC<PlayerAvatarRowProps> = ({
     playersFromState,
     currentUserId,
     completedCells,
+    isCurrentUserReady = false, // Default to false
 }) => {
-    // Helper function to get player status based on board completion
-    const getPlayerStatus = (player: Player, cellsCompleted?: number) => {
+    // Helper function to get player status with robust logic (avoid flicker/regression)
+    const getPlayerStatus = (player: PreGamePlayer | undefined, cellsCompleted?: number, isCurrentUser?: boolean) => {
         const totalCells = 25;
         const completed = cellsCompleted || 0;
 
-        if (completed === 0) return 'not-started'; // grey border
-        if (completed === totalCells && player.boardCompleted) return 'completed'; // green border  
-        return 'in-progress'; // yellow border
+        if (isCurrentUser) {
+            // Only when the current user confirmed ready
+            if (isCurrentUserReady) return 'completed';
+        }
+
+        if (!player) {
+            // No socket state yet for others; only show progress if we have any completed cells observed
+            if (completed > 0) return 'in-progress';
+            return 'not-started';
+        }
+
+        // Only consider other players completed when BOTH:
+        // - player explicitly confirmed ready (isReady)
+        // - and we observed 25 completed cells for them
+        const confirmedReady = !!player.isReady;
+        if (confirmedReady && (player.cellsCompleted ?? 0) >= totalCells) return 'completed';
+
+        if ((player.cellsCompleted ?? 0) > 0 || completed > 0) return 'in-progress';
+        return 'not-started';
     };
 
     // Helper function to get avatar border color based on status
@@ -53,7 +66,7 @@ const PlayerAvatarRow: React.FC<PlayerAvatarRowProps> = ({
                         ? completedCells // Current user's actual local progress
                         : (playerFromState?.cellsCompleted || 0); // Other players from socket events
 
-                    const status = getPlayerStatus(player, cellsCompleted);
+                    const status = getPlayerStatus(playerFromState, cellsCompleted, itsMe);
 
                     return (
                         <View key={player.id} style={styles.playerAvatarWrapper}>

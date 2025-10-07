@@ -5,7 +5,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { useStore } from './src/store';
 import { LoginScreen, SignupScreen } from './src/screens/auth';
 import { HomeScreen, RoomLobby } from './src/screens/lobby';
-import { VotingScreen, PreGameBoardScreen } from './src/screens/game';
+import { VotingScreen, PreGameBoardScreen, InGameBoardScreen } from './src/screens/game';
 import { socketService } from './src/services';
 import { apiService } from './src/services/api';
 
@@ -118,6 +118,11 @@ export default function App() {
               name="PreGameBoardScreen"
               component={PreGameBoardScreen}
               options={{ title: '\ubcf4\ub4dc \ub9cc\ub4e4\uae30' }}
+            />
+            <Stack.Screen
+              name="InGameBoardScreen"
+              component={InGameBoardScreen}
+              options={{ title: '게임 진행' }}
             />
           </>
         ) : (

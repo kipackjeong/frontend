@@ -18,6 +18,34 @@ class SocketService {
     this.serverUrl = serverUrl;
   }
 
+  // Request server to start game after pregame (all ready or timer expired)
+  requestGameStart(roomId: string, payload: { reason: 'all_ready' | 'timer_expired'; confirmedOrder: string[] }, callback?: (res: any) => void): void {
+    if (!this.isConnected()) {
+      console.warn('⚠️ Socket not connected');
+      return;
+    }
+    const data = { roomId, ...payload };
+    if (callback) {
+      this.socket?.emit('pregame:request_game_start', data, callback);
+    } else {
+      this.socket?.emit('pregame:request_game_start', data);
+    }
+  }
+
+  // Submit a word during in-game turn
+  submitWord(roomId: string, word: string, userId: string, cellId?: string, callback?: (res: any) => void): void {
+    if (!this.isConnected()) {
+      console.warn('⚠️ Socket not connected');
+      return;
+    }
+    const data = { roomId, word, userId, cellId };
+    if (callback) {
+      this.socket?.emit('game:submit_word', data, callback);
+    } else {
+      this.socket?.emit('game:submit_word', data);
+    }
+  }
+
   /**
    * Connect to the Socket.IO server
    */
@@ -175,15 +203,49 @@ class SocketService {
       store.startTimer('creating', data.timeLimit);
     });
 
-    this.socket.on('game-phase-started', (data: { turnOrder: string[] }) => {
+    this.socket.on('game-phase-started', (data: { turnOrder: string[]; boards?: Record<string, string[][]>; turnDuration?: number }) => {
       console.log('🎲 Game phase started:', data.turnOrder);
+      // 🔎 Diagnostics: verify board payload
+      try {
+        const userId = (useStore.getState() as any).user?.id;
+        const keys = Object.keys(data.boards || {});
+        const myWords = userId && data.boards?.[userId]
+          ? data.boards[userId].flat().filter(w => (w || '').trim().length > 0).length
+          : 0;
+        console.log('🧩 [DEBUG] Boards keys:', keys);
+        console.log('🧩 [DEBUG] My board words:', myWords);
+      } catch (e) {
+        console.log('🧩 [DEBUG] Boards diagnostics error:', e);
+      }
       store.setGameStatus('playing');
+      // Freeze boards if provided by server
+      if (data.boards && typeof (store as any).setInGameBoards === 'function') {
+        (store as any).setInGameBoards(data.boards);
+      }
+      // Initialize deterministic order
       store.initializeTurns(data.turnOrder);
+      // Optionally start first turn immediately
+      if (data.turnOrder.length > 0 && data.turnDuration) {
+        store.startTurn(data.turnOrder[0], data.turnDuration);
+      }
     });
 
     this.socket.on('turn-changed', (data: { currentPlayerId: string; timeRemaining: number }) => {
       console.log('🔄 Turn changed to:', data.currentPlayerId);
       store.startTurn(data.currentPlayerId, data.timeRemaining);
+    });
+
+    // New game lifecycle events (server authoritative)
+    this.socket.on('game:turn_started', (data: { playerId: string; remainingTime: number }) => {
+      console.log('▶️ Turn started for:', data.playerId);
+      store.startTurn(data.playerId, data.remainingTime);
+    });
+
+    this.socket.on('game:word_submitted', (data: { word: string; playerId: string }) => {
+      console.log('📢 Word submitted:', data.word, 'by', data.playerId);
+      // Mark word across all boards and set as current word for UI
+      store.markCell('', data.word);
+      store.setCurrentWord(data.word);
     });
 
     this.socket.on('word-called', (data: { word: string; playerId: string; affectedCells: any }) => {
