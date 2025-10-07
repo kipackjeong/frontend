@@ -99,6 +99,10 @@ export function PreGameBoardScreen() {
         if (timeLeft === 0 && roomId) {
             (async () => {
                 try {
+                    // B) Force a final progress broadcast with 25 cells
+                    console.log('⏰ [PREGAME] Timer expired. Forcing final progress update (25/25)...');
+                    try { sendBoardProgressUpdate(25, true); } catch { }
+
                     // A) Ensure final snapshot is sent before requesting game start
                     console.log('⏰ [PREGAME] Timer expired. Sending final snapshot before game start...');
                     const readyRes = await sendCompletionStatus(true);
@@ -113,7 +117,7 @@ export function PreGameBoardScreen() {
                 }
             })();
         }
-    }, [timeLeft, roomId, sendCompletionStatus]);
+    }, [timeLeft, roomId, sendCompletionStatus, sendBoardProgressUpdate]);
 
     // Navigate to in-game screen when server starts game
     useEffect(() => {

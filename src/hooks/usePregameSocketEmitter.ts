@@ -74,8 +74,11 @@ export function usePregameSocketEmitter({
                 socketConnected: socketService.isConnected()
             });
 
+            const sanitizedBoard: string[][] = (bingoBoard || []).map((row) =>
+                (row || []).map((cell: any) => ((cell?.word || cell?.previousWord || '').trim()))
+            );
             const boardData = {
-                board: bingoBoard,
+                board: sanitizedBoard,
                 completedCells: cellsCompleted,
                 timestamp: new Date().toISOString(),
                 playerId: user.id,
@@ -102,16 +105,20 @@ export function usePregameSocketEmitter({
                 console.error('❌ [AVATAR_SYNC] Board broadcast error:', error);
             });
         }
-    }, [user?.id, roomId, allCellsValidAndFilled]);
+    }, [user?.id, roomId, allCellsValidAndFilled, bingoBoard, currentConsonant]);
 
     /**
      * Send immediate completion status to other players
      */
     const sendCompletionStatus = useCallback((isReady: boolean) => {
         if (user?.id && roomId) {
+            const sanitizedBoard: string[][] = (bingoBoard || []).map((row) =>
+                (row || []).map((cell: any) => ((cell?.word || cell?.previousWord || '').trim()))
+            );
+            const completed = sanitizedBoard.flat().filter((w) => w && w.length > 0).length;
             const boardData = {
-                board: bingoBoard,
-                completedCells: bingoBoard.flat().filter(cell => (cell.word || (cell as any).previousWord) !== '').length,
+                board: sanitizedBoard,
+                completedCells: completed,
                 timestamp: new Date().toISOString(),
                 playerId: user.id,
                 consonant: currentConsonant
