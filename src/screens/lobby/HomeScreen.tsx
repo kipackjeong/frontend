@@ -14,13 +14,16 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Icon from 'react-native-vector-icons/Feather';
 import { Card, CardContent } from '../../components/common';
 import { Input } from '../../components/common';
-import { AnimatedAvatar } from '../../components/common';
+import HomeHeader from '../../components/lobby/HomeHeader';
+import PrimaryActions from '../../components/lobby/PrimaryActions';
+import HowToPlayCard from '../../components/lobby/HowToPlayCard';
 import { useNavigation } from '@react-navigation/native';
 import { useUser, useAuthActions, useStore } from '../../store';
 import { HomeScreenNavigationProp } from '../../types/navigation';
-import LobbyButton from './LobbyButton';
 import { apiService } from '../../services/api';
 import { socketService } from '../../services/socket';
+import { KS_DEV_BOARD } from '../../constants/devBoards';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width, height } = Dimensions.get('window');
 
@@ -32,6 +35,8 @@ interface User {
     gamesPlayed: number;
     winRate: number;
 }
+
+const DEV_KS_CODE_KEY = '@dev_ks_room_code';
 
 const HomeScreen = () => {
     const navigation = useNavigation<HomeScreenNavigationProp>();
@@ -172,7 +177,7 @@ const HomeScreen = () => {
     return (
         <SafeAreaView style={styles.container}>
             <LinearGradient
-                colors={['##FFFFFF', '#f5f1eb']}
+                colors={['#FFFFFF', '#f5f1eb']}
                 style={styles.backgroundGradient}
             >
                 {/* App Bar */}
@@ -261,35 +266,14 @@ const HomeScreen = () => {
                     contentContainerStyle={styles.scrollContent}
                     showsVerticalScrollIndicator={false}
                 >
-                    {/* Welcome Section with Enhanced Animated Avatar */}
-                    <View style={styles.welcomeSection}>
-                        {/* Enhanced Animated Avatar Character */}
-                        <View style={styles.avatarSection}>
-                            <AnimatedAvatar
-                                size="lg"
-                                mood={avatarMood}
-                                interactive={true}
-                            />
-                        </View>
-
-                        <Text style={styles.welcomeTitle}>
-                            초성 빙고
-                        </Text>
-                        <Text style={styles.welcomeSubtitle}>
-                            Ready to test your Korean consonant skills? Master the art of 초성 (choseong) and compete in exciting bingo matches!
-                        </Text>
-                    </View>
-
-                    <View style={styles.buttonsContainer}>
-                        <LobbyButton
-                            style={styles.gameStartButton}
-                            onPress={handleJoinGame}
-                            gradient={true}
-                            gradientColors={['#8b4513', '#228b22']}
-                        >
-                            <Text style={styles.buttonText}>게임 시작</Text>
-                        </LobbyButton>
-                    </View>
+                    <HomeHeader mood={avatarMood} />
+                    <PrimaryActions
+                        onQuickPlay={handleJoinGame}
+                        onCreateRoom={handleCreateRoom}
+                        onJoinWithCode={handleShowRoomCodeInput}
+                        loadingCreate={isCreatingRoom}
+                    />
+                    <HowToPlayCard />
 
                     {/* Development Section - Only visible in development mode */}
                     {__DEV__ && (
@@ -324,12 +308,229 @@ const HomeScreen = () => {
                                     style={styles.devButton}
                                     onPress={() => navigation.navigate('PreGameBoardScreen', {
                                         roomId: 'dev-room',
-                                        winnerConsonant: 'ㅇㅅ'
+                                        winnerConsonant: 'ㄱㅅ'
                                     })}
                                     activeOpacity={0.7}
                                 >
                                     <Icon name="grid" size={16} color="#8b4513" />
-                                    <Text style={styles.devButtonText}>Bingo Board</Text>
+                                    <Text style={styles.devButtonText}>Bingo Board (dev-room)</Text>
+                                </TouchableOpacity>
+                                
+                                {/* Dev: Auto-join ㄱㅅ room (use canonical code if present, else discover/create) */}
+                                <TouchableOpacity
+                                    style={styles.devButton}
+                                    onPress={async () => {
+                                        try {
+                                            if (!user?.id) {
+                                                Alert.alert('Not signed in', 'User ID is missing. Please login.');
+                                                return;
+                                            }
+
+                                            // Ensure socket connection for room join emit
+                                            if (!socketService.isConnected()) {
+                                                try {
+                                                    await socketService.connect(user.id);
+                                                } catch (e) {
+                                                    console.warn('Socket connect failed, continuing with API step first:', e);
+                                                }
+                                            }
+
+                                            // Find the latest DEV_ㄱㅅ room
+                                            const rooms = await apiService.getAvailableRooms();
+                                            const devRooms = (rooms || []).filter((r: any) => typeof r?.name === 'string' && r.name.startsWith('DEV_ㄱㅅ'));
+                                            let targetRoom: any | null = null;
+
+                                            if (devRooms.length > 0) {
+                                                // Prefer most recently updated if timestamps exist, else take the last
+                                                targetRoom = devRooms.sort((a: any, b: any) => {
+                                                    const aT = Date.parse(a.updatedAt || a.createdAt || 0) || 0;
+                                                    const bT = Date.parse(b.updatedAt || b.createdAt || 0) || 0;
+                                                    return aT - bT;
+                                                })[devRooms.length - 1];
+                                            }
+
+                                            if (targetRoom) {
+                                                // Join via REST and socket
+                                                const joined = await apiService.joinRoom(targetRoom.code);
+                                                setCurrentRoom(joined);
+                                                socketService.emit('room:join', { code: joined.code });
+                                                navigation.navigate('PreGameBoardScreen', {
+                                                    roomId: joined.id,
+                                                    winnerConsonant: 'ㄱㅅ'
+                                                });
+                                                return;
+                                            }
+
+                                            // If not found, create a new DEV_ㄱㅅ room and go
+                                            const newRoom = await apiService.createRoom({ name: 'DEV_ㄱㅅ' });
+                                            setCurrentRoom(newRoom);
+                                            socketService.emit('room:join', { code: newRoom.code });
+                                            navigation.navigate('PreGameBoardScreen', {
+                                                roomId: newRoom.id,
+                                                winnerConsonant: 'ㄱㅅ'
+                                            });
+                                        } catch (err) {
+                                            const msg = err instanceof Error ? err.message : 'Failed to auto-join ㄱㅅ dev room';
+                                            Alert.alert('Error', msg);
+                                        }
+                                    }}
+                                    activeOpacity={0.7}
+                                >
+                                    <Icon name="log-in" size={16} color="#8b4513" />
+                                    <Text style={styles.devButtonText}>Join ㄱㅅ Dev Room (auto)</Text>
+                                </TouchableOpacity>
+
+                                {/* Dev: Create a DEV_ㄱㅅ room then go straight to ㄱㅅ board (also persist canonical code) */}
+                                <TouchableOpacity
+                                    style={styles.devButton}
+                                    onPress={async () => {
+                                        try {
+                                            const newRoom = await apiService.createRoom({ name: 'DEV_ㄱㅅ' });
+                                            setCurrentRoom(newRoom);
+                                            socketService.emit('room:join', { code: newRoom.code });
+                                            try { await AsyncStorage.setItem(DEV_KS_CODE_KEY, (newRoom.code || '').toUpperCase()); } catch {}
+                                            navigation.navigate('PreGameBoardScreen', {
+                                                roomId: newRoom.id,
+                                                winnerConsonant: 'ㄱㅅ'
+                                            });
+                                        } catch (err) {
+                                            const msg = err instanceof Error ? err.message : 'Failed to create room';
+                                            Alert.alert('Error', msg);
+                                        }
+                                    }}
+                                    activeOpacity={0.7}
+                                >
+                                    <Icon name="plus-circle" size={16} color="#8b4513" />
+                                    <Text style={styles.devButtonText}>Create Room → ㄱㅅ Board</Text>
+                                </TouchableOpacity>
+
+                                {/* Dev: Jump straight to In-Game with prefilled ㄱㅅ board */}
+                                <TouchableOpacity
+                                    style={styles.devButton}
+                                    onPress={async () => {
+                                        try {
+                                            if (!user?.id) {
+                                                Alert.alert('Not signed in', 'User ID is missing. Please login.');
+                                                return;
+                                            }
+
+                                            // 1) Ensure socket is connected (with token if available)
+                                            if (!socketService.isConnected()) {
+                                                const token = (apiService as any)?.getAccessToken?.() || undefined;
+                                                try {
+                                                    await socketService.connect(user.id, token);
+                                                } catch (e) {
+                                                    console.warn('Socket connect failed, continuing...', e);
+                                                }
+                                            }
+
+                                            // 2) Use canonical code if available; else discover/create and persist
+                                            let activeRoom: any | null = null;
+                                            let storedCode = (await AsyncStorage.getItem(DEV_KS_CODE_KEY)) || '';
+                                            storedCode = storedCode.trim().toUpperCase();
+                                            if (storedCode) {
+                                                try {
+                                                    activeRoom = await apiService.joinRoom(storedCode);
+                                                } catch {
+                                                    await AsyncStorage.removeItem(DEV_KS_CODE_KEY);
+                                                }
+                                            }
+                                            if (!activeRoom) {
+                                                const rooms = await apiService.getAvailableRooms();
+                                                const devRooms = (rooms || []).filter((r: any) => typeof r?.name === 'string' && r.name.startsWith('DEV_ㄱㅅ'));
+                                                if (devRooms.length > 0) {
+                                                    const oldest = devRooms.sort((a: any, b: any) => {
+                                                        const aT = Date.parse(a.createdAt || a.updatedAt || 0) || 0;
+                                                        const bT = Date.parse(b.createdAt || b.updatedAt || 0) || 0;
+                                                        return aT - bT;
+                                                    })[0];
+                                                    activeRoom = await apiService.joinRoom(oldest.code);
+                                                    await AsyncStorage.setItem(DEV_KS_CODE_KEY, (activeRoom.code || '').toUpperCase());
+                                                }
+                                            }
+                                            if (!activeRoom) {
+                                                const created = await apiService.createRoom({ name: 'DEV_ㄱㅅ' });
+                                                activeRoom = await apiService.joinRoom(created.code);
+                                                await AsyncStorage.setItem(DEV_KS_CODE_KEY, (activeRoom.code || '').toUpperCase());
+                                            }
+
+                                            // 3) Join socket room (no-ack) and set store, then allow a short settle time
+                                            setCurrentRoom(activeRoom);
+                                            socketService.emit('room:join', { code: activeRoom.code });
+                                            await new Promise(r => setTimeout(r, 200));
+
+                                            // 4) Join pregame and set ready + progress
+                                            socketService.joinPreGame(activeRoom.id, 'ㄱㅅ');
+                                            // Ensure UI knows the selected pair for display (ㄱㅅ)
+                                            try {
+                                                useStore.setState({
+                                                    selectedChoseongPair: {
+                                                        id: 'dev-ks',
+                                                        korean: 'ㄱㅅ',
+                                                        english: 'KS',
+                                                        votes: 0,
+                                                        votedBy: [],
+                                                    }
+                                                } as any);
+                                            } catch {}
+                                            const boardData = {
+                                                board: KS_DEV_BOARD,
+                                                completedCells: 25,
+                                                timestamp: new Date().toISOString(),
+                                                playerId: user.id,
+                                                consonant: 'ㄱㅅ',
+                                            };
+                                            await socketService.setPreGameReady(activeRoom.id, true, boardData);
+                                            await socketService.updatePregameBoardStatus(activeRoom.id, user.id, 25, 25, true, boardData);
+
+                                            // 4.5) Bootstrap local in-game board so screen has data immediately
+                                            try {
+                                                // Freeze my board locally; server payload will override when available
+                                                useStore.getState().setInGameBoards({ [user.id]: KS_DEV_BOARD });
+                                                // Set status to playing for UI context (optional)
+                                                (useStore.getState() as any).setGameStatus?.('playing');
+                                                console.log('🧪 [DEV] Bootstrapped local in-game board for quick navigation');
+                                            } catch (e) {
+                                                console.warn('Bootstrap setInGameBoards failed:', e);
+                                            }
+
+                                            // 4.6) Refresh room players to build confirmed order for server
+                                            let confirmedOrder: string[] = [];
+                                            try {
+                                                const latest = await apiService.getRoom(activeRoom.id);
+                                                const ids = Array.isArray(latest?.players) ? latest.players.map((p: any) => p.id) : [];
+                                                confirmedOrder = Array.from(new Set(ids));
+                                            } catch {
+                                                const ids = Array.isArray(activeRoom?.players) ? activeRoom.players.map((p: any) => p.id) : [];
+                                                confirmedOrder = Array.from(new Set(ids));
+                                            }
+
+                                            // 5) Navigate when server actually starts the game (with short fallback)
+                                            await new Promise<void>((resolve) => {
+                                                const onStarted = (_data: any) => {
+                                                    socketService.off('game-phase-started', onStarted);
+                                                    navigation.navigate('InGameBoardScreen' as never);
+                                                    resolve();
+                                                };
+                                                socketService.on('game-phase-started', onStarted);
+                                                // Request server start after listeners are set
+                                                socketService.requestGameStart(activeRoom.id, { reason: 'all_ready', confirmedOrder });
+                                                // Fallback: navigate after 1.5s if no event (dev convenience)
+                                                setTimeout(() => {
+                                                    socketService.off('game-phase-started', onStarted);
+                                                    navigation.navigate('InGameBoardScreen' as never);
+                                                    resolve();
+                                                }, 1500);
+                                            });
+                                        } catch (err) {
+                                            const msg = err instanceof Error ? err.message : 'Failed to jump to in-game';
+                                            Alert.alert('Error', msg);
+                                        }
+                                    }}
+                                    activeOpacity={0.7}
+                                >
+                                    <Icon name="zap" size={16} color="#8b4513" />
+                                    <Text style={styles.devButtonText}>Jump to In-Game (Dev ㄱㅅ)</Text>
                                 </TouchableOpacity>
                             </View>
 
@@ -495,7 +696,7 @@ const HomeScreen = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '##FFFFFF',
+        backgroundColor: '#FFFFFF',
     },
     backgroundGradient: {
         flex: 1,
@@ -823,15 +1024,16 @@ const styles = StyleSheet.create({
         color: '#dc2626',
     },
     developmentButtons: {
-        flexDirection: 'row',
+        flexDirection: 'column',
         gap: 12,
         marginBottom: 12,
+        width: '100%',
     },
     devButton: {
-        flex: 1,
+        width: '100%',
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center',
+        justifyContent: 'flex-start',
         gap: 8,
         paddingVertical: 12,
         paddingHorizontal: 16,
@@ -849,6 +1051,7 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '600',
         color: '#8b4513',
+        textAlign: 'left',
     },
     developmentNote: {
         fontSize: 12,
