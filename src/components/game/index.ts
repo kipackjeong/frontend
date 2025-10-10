@@ -1,3 +1,4 @@
 export { default as BingoGrid } from './BingoGrid';
-export { default as PlayerAvatarRow } from './PlayerAvatarRow';
 export { default as TimerDisplay } from './TimerDisplay';
+export { default as InGameAvatarRow } from './InGameAvatarRow';
+export { default as PreGameAvatarRow } from './PreGameAvatarRow';

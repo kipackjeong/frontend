@@ -2,7 +2,7 @@ import React, { useMemo, useState, useCallback } from 'react';
 import { View, Text, SafeAreaView, StyleSheet, TouchableOpacity, Alert, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Icon from 'react-native-vector-icons/Feather';
-import { PlayerAvatarRow } from '../../components/game';
+import { InGameAvatarRow } from '../../components/game';
 import { BingoBoard, BingoCell as StoreBingoCell } from '../../types';
 import { useStore } from '../../store';
 import { socketService } from '../../services/socket';
@@ -18,7 +18,6 @@ const GRID_GAP = 8;
 
 const InGameBoardScreen: React.FC = () => {
   const { user, currentPlayerBoard, boards, currentTurn, room, currentRoom, selectedChoseongPair, pregamePlayers, currentWord } = useStore();
-  const lineCountsByPlayerId = useStore((s: any) => s.lineCountsByPlayerId);
 
   const myBoard: BingoBoard | null = useMemo(() => {
     if (currentPlayerBoard) return currentPlayerBoard;
@@ -190,8 +189,8 @@ const InGameBoardScreen: React.FC = () => {
             </View>
           </View>
 
-          {/* Players Avatar Row */}
-          <PlayerAvatarRow
+          {/* Players Avatar Row (In-Game) */}
+          <InGameAvatarRow
             players={playersList}
             playersFromState={pregamePlayers || []}
             currentUserId={user?.id}

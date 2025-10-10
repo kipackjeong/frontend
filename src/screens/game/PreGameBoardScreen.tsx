@@ -21,7 +21,7 @@ import { useStore } from '../../store';
 
 // Components
 import { Card } from '../../components/common';
-import { BingoGrid, PlayerAvatarRow, TimerDisplay } from '../../components/game';
+import { BingoGrid, PreGameAvatarRow, TimerDisplay } from '../../components/game';
 
 // Custom Hooks
 import { useBingoBoard } from '../../hooks/useBingoBoard';
@@ -363,7 +363,7 @@ export function PreGameBoardScreen() {
                             </View>
                         </View>
 
-                        <PlayerAvatarRow
+                        <PreGameAvatarRow
                             players={currentRoom?.players || []}
                             playersFromState={players}
                             currentUserId={user?.id}
