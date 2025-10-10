@@ -94,6 +94,20 @@ export function PreGameBoardScreen() {
 
     const totalCells = 25;
 
+    // Dev-only: explicitly join PreGame phase so server tracks participants reliably in a real room
+    useEffect(() => {
+        if (__DEV__ && roomId && currentConsonant) {
+            try {
+                if (socketService.isConnected()) {
+                    console.log('🛠️ [DEV] Joining pregame channel explicitly');
+                    socketService.joinPreGame(roomId, currentConsonant);
+                }
+            } catch (e) {
+                console.log('⚠️ [DEV] joinPreGame failed or socket not ready:', e);
+            }
+        }
+    }, [roomId, currentConsonant]);
+
     // When the timer expires, request server to start game (server is authoritative)
     useEffect(() => {
         if (timeLeft === 0 && roomId) {
@@ -277,6 +291,21 @@ export function PreGameBoardScreen() {
         }
     };
 
+    // Dev-only: Force start game from pregame (server should be idempotent and authoritative)
+    const handleForceStartGame = () => {
+        if (!roomId) {
+            Alert.alert('No Room', 'roomId is missing. Join or create a room first.');
+            return;
+        }
+        try {
+            const order = useStore.getState().getConfirmedOrder?.() || [];
+            console.log('🚀 [DEV] Forcing game start with order:', order);
+            socketService.requestGameStart(roomId, { reason: 'all_ready', confirmedOrder: order });
+        } catch (e) {
+            console.error('❌ [DEV] Failed to force start:', e);
+        }
+    };
+
     // Helper function to get player status based on board completion
     const getPlayerStatus = (player: any, cellsCompleted?: number) => {
         const totalCells = 25;
@@ -400,6 +429,16 @@ export function PreGameBoardScreen() {
                                     <Icon name="edit-3" size={18} color="#8b4513" />
                                     <Text style={styles.editButtonText}>Edit Board</Text>
                                 </TouchableOpacity>
+                                {__DEV__ && (
+                                    <TouchableOpacity
+                                        style={[styles.editButton]}
+                                        onPress={handleForceStartGame}
+                                        activeOpacity={0.9}
+                                    >
+                                        <Icon name="fast-forward" size={18} color="#8b4513" />
+                                        <Text style={styles.editButtonText}>Force Start (Dev)</Text>
+                                    </TouchableOpacity>
+                                )}
                             </View>
                         )}
                     </Animated.View>

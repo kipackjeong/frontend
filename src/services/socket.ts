@@ -6,6 +6,7 @@ import { io, Socket } from 'socket.io-client';
 import { useStore } from '../store';
 import { SocketEvents, Room, ChoseongPair, BingoLine } from '../types';
 import logger from '../utils/logger';
+import { API_CONFIG } from '../constants/config';
 
 class SocketService {
   private socket: Socket | null = null;
@@ -14,8 +15,22 @@ class SocketService {
   private maxReconnectAttempts = 5;
   private serverUrl: string;
 
-  constructor(serverUrl: string = 'http://localhost:3001') {
+  constructor(serverUrl: string = API_CONFIG.SOCKET_URL) {
     this.serverUrl = serverUrl;
+  }
+
+  // Select a word during in-game turn (pre-submit highlight)
+  selectWord(roomId: string, word: string, userId: string, callback?: (res: any) => void): void {
+    if (!this.isConnected()) {
+      console.warn('⚠️ Socket not connected');
+      return;
+    }
+    const data = { roomId, word, userId };
+    if (callback) {
+      this.socket?.emit('game:word_selected', data, callback);
+    } else {
+      this.socket?.emit('game:word_selected', data);
+    }
   }
 
   // Request server to start game after pregame (all ready or timer expired)
@@ -43,6 +58,20 @@ class SocketService {
       this.socket?.emit('game:submit_word', data, callback);
     } else {
       this.socket?.emit('game:submit_word', data);
+    }
+  }
+
+  // Request next turn (dev/host fallback)
+  requestNextTurn(roomId: string, nextPlayerId: string, reason: 'timeout' | 'manual' = 'timeout', callback?: (res: any) => void): void {
+    if (!this.isConnected()) {
+      console.warn('⚠️ Socket not connected');
+      return;
+    }
+    const data = { roomId, nextPlayerId, reason };
+    if (callback) {
+      this.socket?.emit('game:request_next_turn', data, callback);
+    } else {
+      this.socket?.emit('game:request_next_turn', data);
     }
   }
 
@@ -218,27 +247,71 @@ class SocketService {
         console.log('🧩 [DEBUG] Boards diagnostics error:', e);
       }
       store.setGameStatus('playing');
+      // Reset any previous selection
+      try { (store as any).setCurrentWord?.(''); } catch {}
       // Freeze boards if provided by server
       if (data.boards && typeof (store as any).setInGameBoards === 'function') {
         (store as any).setInGameBoards(data.boards);
       }
-      // Initialize deterministic order
+      // Initialize deterministic order; the server will emit 'game:turn_started' next.
+      // We deliberately do NOT start the first turn here to avoid duplicate timers.
       store.initializeTurns(data.turnOrder);
-      // Optionally start first turn immediately
-      if (data.turnOrder.length > 0 && data.turnDuration) {
-        store.startTurn(data.turnOrder[0], data.turnDuration);
-      }
     });
 
     this.socket.on('turn-changed', (data: { currentPlayerId: string; timeRemaining: number }) => {
       console.log('🔄 Turn changed to:', data.currentPlayerId);
+      try {
+        const state = useStore.getState() as any;
+        let order: string[] = Array.isArray(state.turnOrder) ? state.turnOrder : [];
+        const players = state.currentRoom?.players || state.room?.players || [];
+        let ids: string[] = Array.isArray(players) ? players.map((p: any) => p.id) : [];
+        ids = Array.from(new Set(ids));
+        const needInit = ids.length >= 2 && (order.length < 2 || ids.some((id) => !order.includes(id)));
+        if (needInit) {
+          if (!ids.includes(data.currentPlayerId)) ids.unshift(data.currentPlayerId);
+          const idx = ids.indexOf(data.currentPlayerId);
+          if (idx > 0) {
+            ids = [...ids.slice(idx), ...ids.slice(0, idx)];
+          }
+          store.initializeTurns(ids);
+        }
+        (store as any).setCurrentWord?.('');
+      } catch {}
       store.startTurn(data.currentPlayerId, data.timeRemaining);
     });
 
     // New game lifecycle events (server authoritative)
     this.socket.on('game:turn_started', (data: { playerId: string; remainingTime: number }) => {
       console.log('▶️ Turn started for:', data.playerId);
+      try {
+        const state = useStore.getState() as any;
+        let order: string[] = Array.isArray(state.turnOrder) ? state.turnOrder : [];
+        const players = state.currentRoom?.players || state.room?.players || [];
+        let ids: string[] = Array.isArray(players) ? players.map((p: any) => p.id) : [];
+        ids = Array.from(new Set(ids));
+        const needInit = ids.length >= 2 && (order.length < 2 || ids.some((id) => !order.includes(id)));
+        if (needInit) {
+          if (!ids.includes(data.playerId)) ids.unshift(data.playerId);
+          const idx = ids.indexOf(data.playerId);
+          if (idx > 0) {
+            ids = [...ids.slice(idx), ...ids.slice(0, idx)];
+          }
+          store.initializeTurns(ids);
+        }
+        // Clear any previous selection on new turn start
+        (store as any).setCurrentWord?.('');
+      } catch (e) {
+        console.warn('Turn init check failed:', e);
+      }
       store.startTurn(data.playerId, data.remainingTime);
+    });
+
+    // Cross-device selection highlight
+    this.socket.on('game:word_selected', (data: { word: string; playerId: string }) => {
+      console.log('🔵 Word selected (highlight):', data.word, 'by', data.playerId);
+      try {
+        (store as any).setCurrentWord?.(data.word);
+      } catch {}
     });
 
     this.socket.on('game:word_submitted', (data: { word: string; playerId: string }) => {
@@ -246,6 +319,15 @@ class SocketService {
       // Mark word across all boards and set as current word for UI
       store.markCell('', data.word);
       store.setCurrentWord(data.word);
+    });
+
+    // Per-user line counts broadcast from server
+    this.socket.on('game:line_counts', (data: { counts: Record<string, number> }) => {
+      try {
+        (store as any).setLineCountsByPlayerId?.(data.counts || {});
+      } catch (e) {
+        console.warn('Failed to apply line counts:', e);
+      }
     });
 
     this.socket.on('word-called', (data: { word: string; playerId: string; affectedCells: any }) => {

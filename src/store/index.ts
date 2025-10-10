@@ -4,7 +4,8 @@
  */
 
 import { create } from 'zustand';
-import { subscribeWithSelector, persist } from 'zustand/middleware';
+import { subscribeWithSelector, persist, createJSONStorage } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createUserSlice, UserSlice } from './slices/userSlice';
 import { createGameSlice, GameSlice } from './slices/gameSlice';
 import { createBoardSlice, BoardSlice } from './slices/boardSlice';
@@ -29,6 +30,7 @@ export const useStore = create<AppStore>()(
       }),
       {
         name: 'choseong-bingo-store', // AsyncStorage key
+        storage: createJSONStorage(() => AsyncStorage),
         partialize: (state) => ({
           // Only persist user data and current room session
           user: state.user,

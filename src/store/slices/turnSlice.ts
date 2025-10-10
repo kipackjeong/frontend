@@ -5,6 +5,8 @@
 
 import { StateCreator } from 'zustand';
 import { GameTurn, GameTimer } from '../../types';
+import { socketService } from '../../services/socket';
+import { apiService } from '../../services/api';
 
 export interface TurnSlice {
   // State
@@ -56,9 +58,12 @@ export const createTurnSlice: StateCreator<TurnSlice> = (set, get, api) => {
     startTurn: (playerId: string, timeLimit: number = 10) => {
       const { turnOrder } = get();
       
-      if (!turnOrder.includes(playerId)) {
-        console.error('❌ Invalid player for turn:', playerId);
-        return;
+      // Be tolerant in dev: if the player isn't in order yet, append it
+      let order = turnOrder;
+      if (!order.includes(playerId)) {
+        order = [...order, playerId];
+        set({ turnOrder: order });
+        console.warn('⚠️ Player not in turnOrder, appending:', playerId);
       }
       
       const newTurn: GameTurn = {
@@ -141,111 +146,94 @@ export const createTurnSlice: StateCreator<TurnSlice> = (set, get, api) => {
     },
 
     startTimer: (phase: 'voting' | 'creating' | 'turn', totalTime: number) => {
-      // Clear existing timer
       if (timerInterval) {
         clearInterval(timerInterval);
+        timerInterval = null;
       }
-      
+
       const timer: GameTimer = {
         totalTime,
         remainingTime: totalTime,
         isActive: true,
         phase,
       };
-      
       set({ timer });
-      
-      // Start countdown
+
       timerInterval = setInterval(() => {
         const { timer: currentTimer } = get();
-        
         if (!currentTimer || !currentTimer.isActive) {
-          if (timerInterval) clearInterval(timerInterval);
+          if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
           return;
         }
-        
         const newRemainingTime = currentTimer.remainingTime - 1;
-        
         if (newRemainingTime <= 0) {
-          // Time's up
+          // Update both timer and current turn's remaining time
+          const currTurn = get().currentTurn;
           set({
             timer: { ...currentTimer, remainingTime: 0, isActive: false },
+            currentTurn: phase === 'turn' && currTurn ? { ...currTurn, timeRemaining: 0 } : currTurn,
           });
-          
-          if (timerInterval) clearInterval(timerInterval);
-          
-          // Handle timeout based on phase
-          switch (phase) {
-            case 'turn':
-              console.log('⏰ Turn time expired - advancing to next player');
-              get().nextTurn();
-              break;
-            case 'voting':
-              console.log('⏰ Voting time expired');
-              break;
-            case 'creating':
-              console.log('⏰ Board creation time expired');
-              break;
-          }
-        } else {
-          // Update remaining time
-          set({
-            timer: { ...currentTimer, remainingTime: newRemainingTime },
-          });
-          
-          // Update current turn time if it's a turn timer
           if (phase === 'turn') {
-            const { currentTurn } = get();
-            if (currentTurn) {
-              set({
-                currentTurn: { ...currentTurn, timeRemaining: newRemainingTime },
-              });
+            try {
+              const state: any = get();
+              const roomId = state.currentRoom?.id || state.room?.id;
+              const order: string[] = Array.isArray(state.turnOrder) ? state.turnOrder : [];
+              const curr: string | undefined = state.currentTurn?.playerId;
+              if (roomId && curr && order.length >= 2) {
+                const idx = Math.max(0, order.indexOf(curr));
+                const nextId = order[(idx + 1) % order.length];
+                const isHost = typeof state.isRoomHost === 'function' ? state.isRoomHost() : (state.currentRoom?.creator_id === state.user?.id);
+                if (isHost) {
+                  try { socketService.requestNextTurn(roomId, nextId, 'timeout'); } catch {}
+                }
+                setTimeout(() => {
+                  const now = get().currentTurn?.playerId;
+                  if (now === curr) {
+                    get().startTurn(nextId);
+                  }
+                }, 350);
+              }
+            } catch (e) {
+              console.warn('Turn timeout handling failed:', e);
             }
           }
+          if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+          return;
         }
+        // Tick: update timer and, for turn phase, also currentTurn remaining time
+        const currTurnTick = get().currentTurn;
+        set({
+          timer: { ...currentTimer, remainingTime: newRemainingTime },
+          currentTurn: phase === 'turn' && currTurnTick ? { ...currTurnTick, timeRemaining: newRemainingTime } : currTurnTick,
+        });
       }, 1000);
-      
-      console.log(`✅ Timer started for ${phase}:`, totalTime, 'seconds');
     },
 
     updateTimer: () => {
-      // This method can be called to sync timer with server time
-      // For now, it's handled by the interval in startTimer
+      const t = get().timer;
+      if (!t) return;
+      set({ timer: { ...t, remainingTime: Math.max(0, t.remainingTime - 1) } });
     },
 
     pauseTimer: () => {
-      const { timer } = get();
-      if (!timer) return;
-      
-      set({
-        timer: { ...timer, isActive: false },
-      });
-      
-      if (timerInterval) {
-        clearInterval(timerInterval);
-        timerInterval = null;
-      }
-      
-      console.log('⏸️ Timer paused');
+      const t = get().timer;
+      if (!t) return;
+      set({ timer: { ...t, isActive: false } });
+      if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
     },
 
     resetTimer: () => {
-      if (timerInterval) {
-        clearInterval(timerInterval);
-        timerInterval = null;
-      }
-      
-      set({ timer: null });
-      console.log('🔄 Timer reset');
+      const t = get().timer;
+      if (!t) return;
+      set({ timer: { ...t, remainingTime: t.totalTime, isActive: false } });
+      if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
     },
-
     setCanCallWord: (can: boolean) => {
       set({ canCallWord: can });
     },
 
     skipTurn: (playerId: string) => {
       const { currentTurn } = get();
-      
       if (!currentTurn || currentTurn.playerId !== playerId) {
         console.warn('⚠️ Cannot skip turn - not your turn');
         return;

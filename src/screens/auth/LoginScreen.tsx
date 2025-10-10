@@ -238,7 +238,7 @@ const LoginScreen = () => {
                         value={formData.email}
                         onChangeText={(text: string) => handleInputChange('email', text)}
                         placeholder="your.email@example.com"
-                        style={[styles.input, errors.email && styles.inputError]}
+                        style={StyleSheet.flatten([styles.input, errors.email ? styles.inputError : undefined])}
                         textStyle={styles.inputText}
                       />
                       {errors.email && (
@@ -254,7 +254,7 @@ const LoginScreen = () => {
                           onChangeText={(text: string) => handleInputChange('password', text)}
                           placeholder="Enter your password"
                           secureTextEntry={!showPassword}
-                          style={[styles.passwordInput, errors.password && styles.inputError]}
+                          style={StyleSheet.flatten([styles.passwordInput, errors.password ? styles.inputError : undefined])}
                           textStyle={styles.inputText}
                         />
                         <TouchableOpacity
@@ -333,7 +333,7 @@ const LoginScreen = () => {
                         value={formData.username}
                         onChangeText={(text: string) => handleInputChange('username', text)}
                         placeholder="Your game name"
-                        style={[styles.input, errors.username && styles.inputError]}
+                        style={StyleSheet.flatten([styles.input, errors.username ? styles.inputError : undefined])}
                         textStyle={styles.inputText}
                       />
                       {errors.username && (
@@ -363,7 +363,7 @@ const LoginScreen = () => {
                           onChangeText={(text: string) => handleInputChange('password', text)}
                           placeholder="Create a password"
                           secureTextEntry={!showPassword}
-                          style={[styles.passwordInput, errors.password && styles.inputError]}
+                          style={StyleSheet.flatten([styles.passwordInput, errors.password ? styles.inputError : undefined])}
                           textStyle={styles.inputText}
                         />
                         <TouchableOpacity
@@ -390,7 +390,7 @@ const LoginScreen = () => {
                           onChangeText={(text: string) => handleInputChange('confirmPassword', text)}
                           placeholder="Confirm your password"
                           secureTextEntry={!showConfirmPassword}
-                          style={[styles.passwordInput, errors.confirmPassword && styles.inputError]}
+                          style={StyleSheet.flatten([styles.passwordInput, errors.confirmPassword ? styles.inputError : undefined])}
                           textStyle={styles.inputText}
                         />
                         <TouchableOpacity

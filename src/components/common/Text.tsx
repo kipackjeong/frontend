@@ -27,14 +27,14 @@ const Text: React.FC<TextProps> = ({
   children,
   ...props
 }) => {
-  const textStyle: TextStyle[] = [
+  const textStyle = StyleSheet.flatten([
     styles.base,
     styles[variant],
     styles[`${weight}Weight`],
     styles[`${color}Color`],
     styles[`${align}Align`],
     style,
-  ];
+  ]) as TextStyle;
 
   return (
     <RNText style={textStyle} {...props}>

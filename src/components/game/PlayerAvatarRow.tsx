@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import Icon from 'react-native-vector-icons/Feather';
+import { useStore } from '../../store';
+import type { BingoBoard } from '../../types';
 import type { Player, PreGamePlayer } from '../../types';
 
 interface PlayerAvatarRowProps {
@@ -18,6 +19,46 @@ const PlayerAvatarRow: React.FC<PlayerAvatarRowProps> = ({
     completedCells,
     isCurrentUserReady = false, // Default to false
 }) => {
+    // Server-authoritative per-user total striked lines
+    const lineCountsByPlayerId = useStore((s: any) => s.lineCountsByPlayerId || {});
+    const boards: BingoBoard[] = useStore((s: any) => s.boards || []);
+
+    // Fallback: derive live counts from local boards state (marks) to stay in sync instantly
+    const localCounts = React.useMemo(() => {
+        const out: Record<string, number> = {};
+        try {
+            const n = 5;
+            for (const b of boards) {
+                let count = 0;
+                // rows
+                for (let r = 0; r < n; r++) {
+                    let complete = true;
+                    for (let c = 0; c < n; c++) { if (!b.cells[r][c].isMarked) { complete = false; break; } }
+                    if (complete) count++;
+                }
+                // cols
+                for (let c = 0; c < n; c++) {
+                    let complete = true;
+                    for (let r = 0; r < n; r++) { if (!b.cells[r][c].isMarked) { complete = false; break; } }
+                    if (complete) count++;
+                }
+                // main diag
+                {
+                    let complete = true;
+                    for (let i = 0; i < n; i++) { if (!b.cells[i][i].isMarked) { complete = false; break; } }
+                    if (complete) count++;
+                }
+                // anti diag
+                {
+                    let complete = true;
+                    for (let i = 0; i < n; i++) { if (!b.cells[i][n - 1 - i].isMarked) { complete = false; break; } }
+                    if (complete) count++;
+                }
+                out[b.playerId] = count;
+            }
+        } catch {}
+        return out;
+    }, [boards]);
     // Helper function to get player status with robust logic (avoid flicker/regression)
     const getPlayerStatus = (player: PreGamePlayer | undefined, cellsCompleted?: number, isCurrentUser?: boolean) => {
         const totalCells = 25;
@@ -67,6 +108,12 @@ const PlayerAvatarRow: React.FC<PlayerAvatarRowProps> = ({
                         : (playerFromState?.cellsCompleted || 0); // Other players from socket events
 
                     const status = getPlayerStatus(playerFromState, cellsCompleted, itsMe);
+                    const serverCount: number | undefined = lineCountsByPlayerId[player.id];
+                    const fallbackCount: number = localCounts[player.id] ?? 0;
+                    const lineCount: number = Math.max(
+                        typeof serverCount === 'number' ? serverCount : -1,
+                        fallbackCount
+                    );
 
                     return (
                         <View key={player.id} style={styles.playerAvatarWrapper}>
@@ -81,9 +128,9 @@ const PlayerAvatarRow: React.FC<PlayerAvatarRowProps> = ({
                                     {player.avatar || player.username?.charAt(0)?.toUpperCase() || '👤'}
                                 </Text>
                                 <View style={styles.hostBadge}>
-                                    {player.isHost && (
-                                        <Icon name="award" size={10} color="#fbbf24" />
-                                    )}
+                                    <Text style={styles.badgeText} numberOfLines={1}>
+                                        {lineCount}
+                                    </Text>
                                 </View>
                             </View>
                             <Text style={styles.playerName}>{itsMe ? 'You' : player.username}</Text>
@@ -128,13 +175,21 @@ const styles = StyleSheet.create({
         top: -2,
         right: -2,
         backgroundColor: '#fef3c7',
-        borderRadius: 8,
-        width: 16,
-        height: 16,
+        borderRadius: 10,
+        width: 20,
+        height: 20,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
         borderColor: '#fbbf24',
+    },
+    badgeText: {
+        fontSize: 11,
+        fontWeight: '800',
+        color: '#92400e',
+        paddingHorizontal: 0,
+        includeFontPadding: false,
+        textAlignVertical: 'center',
     },
     playerName: {
         fontSize: 12,

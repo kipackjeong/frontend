@@ -13,6 +13,7 @@ export interface BoardSlice {
   completedLines: BingoLine[];
   currentWord: string;
   validationErrors: Record<string, string>; // cellId -> error message
+  lineCountsByPlayerId?: Record<string, number>;
   
   // Actions
   createBoard: (playerId: string) => void;
@@ -25,6 +26,7 @@ export interface BoardSlice {
   setCurrentWord: (word: string) => void;
   getAllBoards: () => BingoBoard[];
   setInGameBoards: (frozenBoards: Record<string, string[][]>) => void;
+  setLineCountsByPlayerId: (counts: Record<string, number>) => void;
 }
 
 // Mock Korean words for development
@@ -114,6 +116,7 @@ export const createBoardSlice: StateCreator<BoardSlice> = (set, get, api) => ({
   completedLines: [],
   currentWord: '',
   validationErrors: {},
+  lineCountsByPlayerId: {},
 
   // Actions
   createBoard: (playerId: string) => {
@@ -175,28 +178,70 @@ export const createBoardSlice: StateCreator<BoardSlice> = (set, get, api) => ({
 
   markCell: (cellId: string, word: string) => {
     const { boards } = get();
-    
+    const target = (word || '').trim().toLowerCase();
+
+    // Update all boards' cells for the submitted word
     const updatedBoards = boards.map(board => ({
       ...board,
       cells: board.cells.map(row =>
-        row.map(cell => {
-          if (cell.word.toLowerCase() === word.toLowerCase()) {
-            return { ...cell, isMarked: true };
-          }
-          return cell;
-        })
+        row.map(cell =>
+          cell.word.trim().toLowerCase() === target
+            ? { ...cell, isMarked: true }
+            : cell
+        )
       ),
     }));
-    
-    set({ boards: updatedBoards });
-    
-    // Check for completed lines
-    updatedBoards.forEach(board => {
-      const lines = get().detectCompletedLines(board.id);
-      if (lines.length > 0) {
-        console.log('✅ New bingo lines detected for:', board.playerId, lines);
+
+    // Update store boards and ensure currentPlayerBoard stays in sync for this user
+    const userId: string | undefined = (get() as any).user?.id;
+    const myBoardUpdated = userId ? (updatedBoards.find(b => b.playerId === userId) || null) : null;
+    const myLines = myBoardUpdated ? get().detectCompletedLines(myBoardUpdated.id) : [];
+
+    // Compute local per-user line counts (rows, cols, diags) as an immediate UI update
+    const countsByPlayer: Record<string, number> = {};
+    try {
+      for (const b of updatedBoards) {
+        const n = 5;
+        let count = 0;
+        // rows
+        for (let r = 0; r < n; r++) {
+          let complete = true;
+          for (let c = 0; c < n; c++) { if (!b.cells[r][c].isMarked) { complete = false; break; } }
+          if (complete) count++;
+        }
+        // cols
+        for (let c = 0; c < n; c++) {
+          let complete = true;
+          for (let r = 0; r < n; r++) { if (!b.cells[r][c].isMarked) { complete = false; break; } }
+          if (complete) count++;
+        }
+        // main diag
+        {
+          let complete = true;
+          for (let i = 0; i < n; i++) { if (!b.cells[i][i].isMarked) { complete = false; break; } }
+          if (complete) count++;
+        }
+        // anti diag
+        {
+          let complete = true;
+          for (let i = 0; i < n; i++) { if (!b.cells[i][n - 1 - i].isMarked) { complete = false; break; } }
+          if (complete) count++;
+        }
+        countsByPlayer[b.playerId] = count;
       }
+    } catch {}
+
+    set({
+      boards: updatedBoards,
+      currentPlayerBoard: myBoardUpdated ?? get().currentPlayerBoard,
+      // Update global completedLines for current player's board to drive UI if needed
+      completedLines: myLines,
+      lineCountsByPlayerId: countsByPlayer,
     });
+
+    if (myBoardUpdated) {
+      console.log('🟩 Marked word on my board and synced currentPlayerBoard');
+    }
   },
 
   validateBoard: (boardId: string) => {
@@ -351,5 +396,9 @@ export const createBoardSlice: StateCreator<BoardSlice> = (set, get, api) => ({
     const myBoard = userId ? boards.find(b => b.playerId === userId) || null : null;
 
     set({ boards, currentPlayerBoard: myBoard });
+  },
+
+  setLineCountsByPlayerId: (counts: Record<string, number>) => {
+    set({ lineCountsByPlayerId: counts });
   },
 });

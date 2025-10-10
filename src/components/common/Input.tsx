@@ -11,6 +11,7 @@ import {
     ViewStyle,
     TextStyle,
     KeyboardTypeOptions,
+    StyleProp,
 } from 'react-native';
 
 interface InputProps {
@@ -33,8 +34,8 @@ interface InputProps {
     textAlign?: 'left' | 'center' | 'right';
     
     // Styling props
-    style?: ViewStyle;
-    textStyle?: TextStyle;
+    style?: StyleProp<any>;
+    textStyle?: StyleProp<TextStyle>;
     
     // Common props
     multiline?: boolean;
@@ -98,20 +99,20 @@ const Input: React.FC<InputProps> = ({
                 onBlur={() => setIsFocused(false)}
                 autoCorrect={false}
                 spellCheck={false}
-                style={[inputStyle, style]}
+                style={StyleSheet.flatten([inputStyle, style]) as TextStyle}
             />
         );
     }
 
     // Render advanced version with labels and validation
     return (
-        <View style={[containerStyle, style]}>
+        <View style={StyleSheet.flatten([containerStyle, style])}>
             {label && (
                 <Text style={labelStyle}>{label}</Text>
             )}
 
             <TextInput
-                style={inputStyle}
+                style={StyleSheet.flatten([inputStyle, textStyle]) as TextStyle}
                 value={value}
                 onChangeText={onChangeText}
                 placeholder={placeholder}

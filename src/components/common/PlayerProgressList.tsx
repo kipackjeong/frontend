@@ -5,6 +5,7 @@ interface Player {
     id: string;
     username: string;
     isHost: boolean;
+    isReady?: boolean;
     boardCompleted: boolean;
 }
 
