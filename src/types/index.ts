@@ -26,6 +26,7 @@ export type LanguageMode = 'korean' | 'english';
 
 export interface Player {
   id: string;
+  playerId?: string;
   username: string;
   isHost: boolean;
   isReady: boolean;

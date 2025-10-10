@@ -22,43 +22,7 @@ const PlayerAvatarRow: React.FC<PlayerAvatarRowProps> = ({
     // Server-authoritative per-user total striked lines
     const lineCountsByPlayerId = useStore((s: any) => s.lineCountsByPlayerId || {});
     const boards: BingoBoard[] = useStore((s: any) => s.boards || []);
-
-    // Fallback: derive live counts from local boards state (marks) to stay in sync instantly
-    const localCounts = React.useMemo(() => {
-        const out: Record<string, number> = {};
-        try {
-            const n = 5;
-            for (const b of boards) {
-                let count = 0;
-                // rows
-                for (let r = 0; r < n; r++) {
-                    let complete = true;
-                    for (let c = 0; c < n; c++) { if (!b.cells[r][c].isMarked) { complete = false; break; } }
-                    if (complete) count++;
-                }
-                // cols
-                for (let c = 0; c < n; c++) {
-                    let complete = true;
-                    for (let r = 0; r < n; r++) { if (!b.cells[r][c].isMarked) { complete = false; break; } }
-                    if (complete) count++;
-                }
-                // main diag
-                {
-                    let complete = true;
-                    for (let i = 0; i < n; i++) { if (!b.cells[i][i].isMarked) { complete = false; break; } }
-                    if (complete) count++;
-                }
-                // anti diag
-                {
-                    let complete = true;
-                    for (let i = 0; i < n; i++) { if (!b.cells[i][n - 1 - i].isMarked) { complete = false; break; } }
-                    if (complete) count++;
-                }
-                out[b.playerId] = count;
-            }
-        } catch {}
-        return out;
-    }, [boards]);
+    const currentTurn = useStore((s: any) => s.currentTurn);
     // Helper function to get player status with robust logic (avoid flicker/regression)
     const getPlayerStatus = (player: PreGamePlayer | undefined, cellsCompleted?: number, isCurrentUser?: boolean) => {
         const totalCells = 25;
@@ -95,12 +59,27 @@ const PlayerAvatarRow: React.FC<PlayerAvatarRowProps> = ({
         }
     };
 
+    // Build quick lookup sets for existing ids to resolve mismatches
+    const knownBoardIds = React.useMemo(() => new Set(boards.map(b => b.playerId)), [boards]);
+    const knownCountIds = React.useMemo(() => new Set(Object.keys(lineCountsByPlayerId || {})), [lineCountsByPlayerId]);
+
+    // Resolve the id to use for counts for a given display player
+    const resolveIdForCounts = (p: Player): string | undefined => {
+        // 1) If their id is present in server counts or boards, trust it
+        if (p?.id && (knownCountIds.has(p.id) || knownBoardIds.has(p.id))) return p.id;
+        // 2) Try to map by exact username from playersFromState (pregame snapshot uses correct ids)
+        const byName = playersFromState?.find(sp => sp.username === p.username);
+        if (byName?.id && (knownCountIds.has(byName.id) || knownBoardIds.has(byName.id))) return byName.id;
+        // 3) Fallback: keep original id
+        return p?.id;
+    };
+
     return (
         <View style={styles.playersSection}>
             <View style={styles.playersAvatarContainer}>
                 {players?.map((player, index) => {
                     const playerFromState = playersFromState.find(p => p.id === player.id);
-                    const itsMe = player.id === currentUserId;
+                    const itsMe = player.playerId === currentUserId;
 
                     // Use local board progress for current user, socket data for others
                     const cellsCompleted = itsMe
@@ -108,12 +87,23 @@ const PlayerAvatarRow: React.FC<PlayerAvatarRowProps> = ({
                         : (playerFromState?.cellsCompleted || 0); // Other players from socket events
 
                     const status = getPlayerStatus(playerFromState, cellsCompleted, itsMe);
-                    const serverCount: number | undefined = lineCountsByPlayerId[player.id];
-                    const fallbackCount: number = localCounts[player.id] ?? 0;
-                    const lineCount: number = Math.max(
-                        typeof serverCount === 'number' ? serverCount : -1,
-                        fallbackCount
-                    );
+                    const serverCount: number | undefined = lineCountsByPlayerId[player.playerId ?? 0];
+                    const turnPid: string | undefined = currentTurn?.playerId;
+                    const isCurrentTurn = !!turnPid && (turnPid === (player as any).playerId || turnPid === player.id);
+                    const lineCount: number = typeof serverCount === 'number' ? serverCount : 0;
+                    if (__DEV__) {
+                        try {
+                            console.log('🟡 [AVATAR MAP]', {
+                                displayId: player.id,
+                                username: player.username,
+                                playerId: player.playerId,
+                                serverCount: serverCount ?? null,
+                                hasBoard: boards.some(b => b.playerId === player.playerId),
+                                currentTurnPlayerId: turnPid,
+                                isCurrentTurn,
+                            });
+                        } catch { }
+                    }
 
                     return (
                         <View key={player.id} style={styles.playerAvatarWrapper}>
@@ -122,7 +112,8 @@ const PlayerAvatarRow: React.FC<PlayerAvatarRowProps> = ({
                                 {
                                     borderColor: getAvatarBorderColor(status),
                                     borderWidth: 3,
-                                }
+                                },
+                                isCurrentTurn && styles.currentTurnRing,
                             ]}>
                                 <Text style={styles.avatarText}>
                                     {player.avatar || player.username?.charAt(0)?.toUpperCase() || '👤'}
@@ -182,6 +173,15 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         borderWidth: 1,
         borderColor: '#fbbf24',
+    },
+    currentTurnRing: {
+        borderColor: '#3b82f6',
+        borderWidth: 3,
+        shadowColor: '#3b82f6',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.35,
+        shadowRadius: 4,
+        elevation: 4,
     },
     badgeText: {
         fontSize: 11,

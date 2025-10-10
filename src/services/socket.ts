@@ -324,6 +324,7 @@ class SocketService {
     // Per-user line counts broadcast from server
     this.socket.on('game:line_counts', (data: { counts: Record<string, number> }) => {
       try {
+        console.log('🟨 [SOCKET] game:line_counts received:', data.counts);
         (store as any).setLineCountsByPlayerId?.(data.counts || {});
       } catch (e) {
         console.warn('Failed to apply line counts:', e);

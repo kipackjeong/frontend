@@ -197,46 +197,11 @@ export const createBoardSlice: StateCreator<BoardSlice> = (set, get, api) => ({
     const myBoardUpdated = userId ? (updatedBoards.find(b => b.playerId === userId) || null) : null;
     const myLines = myBoardUpdated ? get().detectCompletedLines(myBoardUpdated.id) : [];
 
-    // Compute local per-user line counts (rows, cols, diags) as an immediate UI update
-    const countsByPlayer: Record<string, number> = {};
-    try {
-      for (const b of updatedBoards) {
-        const n = 5;
-        let count = 0;
-        // rows
-        for (let r = 0; r < n; r++) {
-          let complete = true;
-          for (let c = 0; c < n; c++) { if (!b.cells[r][c].isMarked) { complete = false; break; } }
-          if (complete) count++;
-        }
-        // cols
-        for (let c = 0; c < n; c++) {
-          let complete = true;
-          for (let r = 0; r < n; r++) { if (!b.cells[r][c].isMarked) { complete = false; break; } }
-          if (complete) count++;
-        }
-        // main diag
-        {
-          let complete = true;
-          for (let i = 0; i < n; i++) { if (!b.cells[i][i].isMarked) { complete = false; break; } }
-          if (complete) count++;
-        }
-        // anti diag
-        {
-          let complete = true;
-          for (let i = 0; i < n; i++) { if (!b.cells[i][n - 1 - i].isMarked) { complete = false; break; } }
-          if (complete) count++;
-        }
-        countsByPlayer[b.playerId] = count;
-      }
-    } catch {}
-
     set({
       boards: updatedBoards,
       currentPlayerBoard: myBoardUpdated ?? get().currentPlayerBoard,
       // Update global completedLines for current player's board to drive UI if needed
       completedLines: myLines,
-      lineCountsByPlayerId: countsByPlayer,
     });
 
     if (myBoardUpdated) {
