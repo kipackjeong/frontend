@@ -252,13 +252,6 @@ const InGameBoardScreen: React.FC = () => {
               </View>
             </View>
           </View>
-          {/* Legend */}
-          <View style={styles.legend}>
-            <View style={[styles.legendDot, { backgroundColor: '#bbf7d0' }]} />
-            <Text style={styles.legendText}>Claimed word</Text>
-            <View style={[styles.legendDot, { backgroundColor: '#dbeafe' }]} />
-            <Text style={styles.legendText}>Selected (current turn)</Text>
-          </View>
         </ScrollView>
       </LinearGradient>
     </SafeAreaView>

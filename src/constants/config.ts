@@ -2,9 +2,29 @@
  * App configuration constants
  */
 
+import { NativeModules } from 'react-native';
+
+// Resolve the development host for React Native (Expo/Metro)
+// This lets iOS Simulator/Device point to your machine automatically.
+const resolveDevHost = (): string => {
+  try {
+    const scriptURL: string = (NativeModules as any)?.SourceCode?.scriptURL ?? '';
+    // Example: http://192.168.1.10:19000/index.bundle?platform=ios&dev=true
+    const match = scriptURL.match(/https?:\/\/([^:]+):\d+/);
+    if (match?.[1]) return match[1];
+  } catch { }
+  return 'localhost';
+};
+
+const DEV_HOST = resolveDevHost();
+const DEV_BASE = `http://${DEV_HOST}:3001`;
+
 export const API_CONFIG = {
-  BASE_URL: __DEV__ ? 'http://localhost:3001' : 'https://api.choseong-bingo.com',
-  SOCKET_URL: __DEV__ ? 'http://localhost:3001' : 'https://api.choseong-bingo.com',
+  BASE_URL: __DEV__ ? DEV_BASE : 'https://chosung-bingo-backend.salmonwave-d39f32dc.westus2.azurecontainerapps.io',
+  SOCKET_URL: __DEV__ ? DEV_BASE : 'https://chosung-bingo-backend.salmonwave-d39f32dc.westus2.azurecontainerapps.io',
+  // BASE_URL: 'https://chosung-bingo-backend.salmonwave-d39f32dc.westus2.azurecontainerapps.io',
+  // SOCKET_URL: 'https://chosung-bingo-backend.salmonwave-d39f32dc.westus2.azurecontainerapps.io',
+
   TIMEOUT: 10000,
 } as const
 
