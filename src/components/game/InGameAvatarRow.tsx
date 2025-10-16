@@ -19,6 +19,7 @@ const InGameAvatarRow: React.FC<InGameAvatarRowProps> = ({
   isCurrentUserReady = false,
 }) => {
   const lineCountsByPlayerId = useStore((s: any) => s.lineCountsByPlayerId || {});
+  const ranksByPlayerId = useStore((s: any) => s.ranksByPlayerId || {});
   const boards: BingoBoard[] = useStore((s: any) => s.boards || []);
   const currentTurn = useStore((s: any) => s.currentTurn);
 
@@ -81,6 +82,11 @@ const InGameAvatarRow: React.FC<InGameAvatarRowProps> = ({
                 <Text style={styles.avatarText}>
                   {player.avatar || player.username?.charAt(0)?.toUpperCase() || '👤'}
                 </Text>
+                {typeof ranksByPlayerId[pid] === 'number' ? (
+                  <View style={styles.rankBadge}>
+                    <Text style={styles.rankBadgeText} numberOfLines={1}>{ranksByPlayerId[pid]}</Text>
+                  </View>
+                ) : null}
                 <View style={styles.hostBadge}>
                   <Text style={styles.badgeText} numberOfLines={1}>{lineCount}</Text>
                 </View>
@@ -102,6 +108,8 @@ const styles = StyleSheet.create({
   avatarText: { fontSize: 18, fontWeight: 'bold', color: '#374151' },
   hostBadge: { position: 'absolute', top: -2, right: -2, backgroundColor: '#fef3c7', borderRadius: 10, width: 20, height: 20, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#fbbf24' },
   badgeText: { fontSize: 11, fontWeight: '800', color: '#92400e', paddingHorizontal: 0, includeFontPadding: false, textAlignVertical: 'center' },
+  rankBadge: { position: 'absolute', top: -2, left: -2, backgroundColor: '#dcfce7', borderRadius: 10, width: 20, height: 20, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#16a34a' },
+  rankBadgeText: { fontSize: 11, fontWeight: '800', color: '#065f46', paddingHorizontal: 0, includeFontPadding: false, textAlignVertical: 'center' },
   playerName: { fontSize: 12, fontWeight: '600', color: '#6b7280', marginTop: 6, textAlign: 'center' },
   currentTurnRing: { borderColor: '#3b82f6', borderWidth: 3, shadowColor: '#3b82f6', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.35, shadowRadius: 4, elevation: 4 },
 });

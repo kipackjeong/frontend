@@ -14,6 +14,9 @@ export interface BoardSlice {
   currentWord: string;
   validationErrors: Record<string, string>; // cellId -> error message
   lineCountsByPlayerId?: Record<string, number>;
+  // Server-authoritative ranking
+  finishOrder?: string[];
+  ranksByPlayerId?: Record<string, number>;
   
   // Actions
   createBoard: (playerId: string) => void;
@@ -27,6 +30,8 @@ export interface BoardSlice {
   getAllBoards: () => BingoBoard[];
   setInGameBoards: (frozenBoards: Record<string, string[][]>) => void;
   setLineCountsByPlayerId: (counts: Record<string, number>) => void;
+  setRanking: (finishOrder: string[], ranks: Record<string, number>) => void;
+  resetRanking: () => void;
 }
 
 // Mock Korean words for development
@@ -117,6 +122,8 @@ export const createBoardSlice: StateCreator<BoardSlice> = (set, get, api) => ({
   currentWord: '',
   validationErrors: {},
   lineCountsByPlayerId: {},
+  finishOrder: [],
+  ranksByPlayerId: {},
 
   // Actions
   createBoard: (playerId: string) => {
@@ -365,5 +372,13 @@ export const createBoardSlice: StateCreator<BoardSlice> = (set, get, api) => ({
 
   setLineCountsByPlayerId: (counts: Record<string, number>) => {
     set({ lineCountsByPlayerId: counts });
+  },
+
+  setRanking: (finishOrder: string[], ranks: Record<string, number>) => {
+    set({ finishOrder, ranksByPlayerId: ranks });
+  },
+
+  resetRanking: () => {
+    set({ finishOrder: [], ranksByPlayerId: {} });
   },
 });

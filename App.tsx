@@ -5,13 +5,15 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { useStore } from './src/store';
 import { LoginScreen, SignupScreen } from './src/screens/auth';
 import { HomeScreen, RoomLobby } from './src/screens/lobby';
-import { VotingScreen, PreGameBoardScreen, InGameBoardScreen } from './src/screens/game';
+import { VotingScreen, PreGameBoardScreen, InGameBoardScreen, ResultScreen } from './src/screens/game';
+import { navigationRef } from './src/services/navigation';
 import { socketService } from './src/services';
 import { apiService } from './src/services/api';
+import type { RootStackParamList } from './src/types/navigation';
 
 
 // Create Stack Navigator
-const Stack = createStackNavigator();
+const Stack = createStackNavigator<RootStackParamList>();
 
 // Main authenticated app navigation
 
@@ -89,7 +91,7 @@ export default function App() {
 
 
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       <Stack.Navigator
         screenOptions={{
           headerShown: false,
@@ -123,6 +125,11 @@ export default function App() {
               name="InGameBoardScreen"
               component={InGameBoardScreen}
               options={{ title: '게임 진행' }}
+            />
+            <Stack.Screen
+              name="ResultScreen"
+              component={ResultScreen}
+              options={{ title: '결과' }}
             />
           </>
         ) : (

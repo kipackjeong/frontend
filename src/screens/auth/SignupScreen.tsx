@@ -14,16 +14,12 @@ import {
 import { Button, Input, Card, Text } from '../../components/common';
 import { useAuthActions, useStore } from '../../store';
 import { RegisterData } from '../../types';
+import type { StackScreenProps } from '@react-navigation/stack';
+import type { RootStackParamList } from '../../types/navigation';
 
-interface SignupScreenProps {
-  navigation: any; // Replace with proper navigation type
-  onSignupSuccess?: () => void;
-}
+type SignupScreenProps = StackScreenProps<RootStackParamList, 'Signup'>;
 
-const SignupScreen: React.FC<SignupScreenProps> = ({
-  navigation,
-  onSignupSuccess,
-}) => {
+const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
   const [formData, setFormData] = useState<RegisterData>({
     username: '',
     email: '',
@@ -37,10 +33,8 @@ const SignupScreen: React.FC<SignupScreenProps> = ({
 
   // Navigate on successful registration
   useEffect(() => {
-    if (user?.isAuthenticated) {
-      onSignupSuccess?.();
-    }
-  }, [user?.isAuthenticated, onSignupSuccess]);
+    // App navigation switches to authenticated stack when user is set
+  }, [user?.isAuthenticated]);
 
   const validateForm = (): boolean => {
     const newErrors: Partial<RegisterData & { confirmPassword: string }> = {};

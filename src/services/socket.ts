@@ -7,6 +7,7 @@ import { useStore } from '../store';
 import { SocketEvents, Room, ChoseongPair, BingoLine } from '../types';
 import logger from '../utils/logger';
 import { API_CONFIG } from '../constants/config';
+import { navigate } from './navigation';
 
 class SocketService {
   private socket: Socket | null = null;
@@ -249,6 +250,8 @@ class SocketService {
       store.setGameStatus('playing');
       // Reset any previous selection
       try { (store as any).setCurrentWord?.(''); } catch {}
+      // Reset server-authoritative ranking for new game
+      try { (store as any).resetRanking?.(); } catch {}
       // Freeze boards if provided by server
       if (data.boards && typeof (store as any).setInGameBoards === 'function') {
         (store as any).setInGameBoards(data.boards);
@@ -328,6 +331,28 @@ class SocketService {
         (store as any).setLineCountsByPlayerId?.(data.counts || {});
       } catch (e) {
         console.warn('Failed to apply line counts:', e);
+      }
+    });
+
+    // Server-authoritative ranking updates
+    this.socket.on('game:ranking_update', (data: { finishOrder: string[]; ranksByPlayerId: Record<string, number> }) => {
+      try {
+        console.log('🏁 [SOCKET] game:ranking_update received:', data);
+        (store as any).setRanking?.(Array.isArray(data.finishOrder) ? data.finishOrder : [], data.ranksByPlayerId || {});
+      } catch (e) {
+        console.warn('Failed to apply ranking update:', e);
+      }
+    });
+
+    // Game finished: stop timers, set status, and navigate to results
+    this.socket.on('game:finished', (data: { winnerId: string; finalScores: Array<{ playerId: string; score: number }> }) => {
+      try {
+        console.log('🏁 [SOCKET] game:finished received:', data);
+        (store as any).resetTimer?.();
+        (store as any).setGameStatus?.('finished');
+        navigate('ResultScreen');
+      } catch (e) {
+        console.warn('Failed to process game finished:', e);
       }
     });
 

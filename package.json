@@ -29,6 +29,7 @@
     "camelcase-keys": "^9.1.3",
     "clipboard": "^2.0.11",
     "expo": "~52.0.0",
+    "expo-asset": "^12.0.9",
     "expo-clipboard": "^7.1.5",
     "expo-linear-gradient": "^14.1.5",
     "expo-status-bar": "~2.0.1",
