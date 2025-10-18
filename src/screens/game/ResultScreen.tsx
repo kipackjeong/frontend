@@ -1,6 +1,8 @@
 import React, { useMemo } from 'react';
-import { SafeAreaView, View, Text, StyleSheet, FlatList } from 'react-native';
+import { SafeAreaView, View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { useStore } from '../../store';
+import { socketService } from '../../services/socket';
 
 interface DisplayPlayer {
   id: string;
@@ -9,12 +11,15 @@ interface DisplayPlayer {
 }
 
 const ResultScreen: React.FC = () => {
+  const navigation = useNavigation<any>();
   const state: any = useStore.getState();
   const players = useStore((s: any) => s.room?.players || s.currentRoom?.players || []);
   const pregamePlayers = useStore((s: any) => s.pregamePlayers || []);
   const lineCountsByPlayerId = useStore((s: any) => s.lineCountsByPlayerId || {});
   const finishOrder = useStore((s: any) => s.finishOrder || []);
   const turnOrder = useStore((s: any) => s.turnOrder || []);
+  const roomId = useStore((s: any) => s.currentRoom?.id);
+  const { clearCurrentRoom } = useStore();
 
   const allPlayers: DisplayPlayer[] = useMemo(() => {
     let list: any[] = Array.isArray(players) && players.length > 0
@@ -74,6 +79,21 @@ const ResultScreen: React.FC = () => {
             </View>
           );
         }}
+        ListFooterComponent={() => (
+          <View style={styles.footer}>
+            <TouchableOpacity
+              style={styles.leaveButton}
+              activeOpacity={0.8}
+              onPress={() => {
+                try { if (roomId) socketService.emit('room:leave', roomId); } catch {}
+                try { (clearCurrentRoom as any)?.(); } catch {}
+                navigation.navigate('HomeScreen' as never);
+              }}
+            >
+              <Text style={styles.leaveButtonText}>Leave</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       />
     </SafeAreaView>
   );
@@ -92,6 +112,9 @@ const styles = StyleSheet.create({
   avatarText: { fontSize: 18, fontWeight: '800', color: '#374151' },
   info: { flex: 1 },
   name: { fontSize: 16, fontWeight: '700', color: '#1f2937' },
+  footer: { paddingHorizontal: 16, paddingVertical: 12 },
+  leaveButton: { backgroundColor: '#8b4513', borderRadius: 12, alignItems: 'center', justifyContent: 'center', paddingVertical: 14 },
+  leaveButtonText: { color: '#ffffff', fontSize: 16, fontWeight: '700' },
 });
 
 export { ResultScreen };

@@ -22,7 +22,7 @@ import { useUser, useAuthActions, useStore } from '../../store';
 import { HomeScreenNavigationProp } from '../../types/navigation';
 import { apiService } from '../../services/api';
 import { socketService } from '../../services/socket';
-import { KS_DEV_BOARD } from '../../constants/devBoards';
+import { KS_DEV_BOARDS } from '../../constants/devBoards';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width, height } = Dimensions.get('window');
@@ -473,8 +473,10 @@ const HomeScreen = () => {
                                                     }
                                                 } as any);
                                             } catch {}
+                                            // Randomly assign one of the ㄱㅅ dev boards for this player
+                                            const devBoard = KS_DEV_BOARDS[Math.floor(Math.random() * KS_DEV_BOARDS.length)];
                                             const boardData = {
-                                                board: KS_DEV_BOARD,
+                                                board: devBoard,
                                                 completedCells: 25,
                                                 timestamp: new Date().toISOString(),
                                                 playerId: user.id,
@@ -486,7 +488,7 @@ const HomeScreen = () => {
                                             // 4.5) Bootstrap local in-game board so screen has data immediately
                                             try {
                                                 // Freeze my board locally; server payload will override when available
-                                                useStore.getState().setInGameBoards({ [user.id]: KS_DEV_BOARD });
+                                                useStore.getState().setInGameBoards({ [user.id]: devBoard });
                                                 // Set status to playing for UI context (optional)
                                                 (useStore.getState() as any).setGameStatus?.('playing');
                                                 console.log('🧪 [DEV] Bootstrapped local in-game board for quick navigation');

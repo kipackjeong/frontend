@@ -5,52 +5,24 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from '../constants/config';
 import { mapApiResponse, safeMapApiResponse, mapApiResponseArray } from '../utils/responseMapper';
+import { handleResponse } from '../utils/apiHelpers';
+import type {
+  ApiResponse,
+  LoginCredentials,
+  RegisterData,
+  AuthResponse,
+  TokenRefreshResponse,
+  Room,
+  CreateRoomData,
+} from '../types/api';
 
-// Types
-export interface ApiResponse<T> {
-  success: boolean;
-  message?: string;
-  data?: T;
-  error?: string;
-  details?: string[];
-}
-
-export interface LoginCredentials {
-  email: string;
-  password: string;
-}
-
-export interface RegisterData {
-  email: string;
-  username: string;
-  password: string;
-  language?: 'en' | 'ko';
-}
-
-export interface AuthResponse {
-  user: {
-    id: string;
-    email: string;
-    username: string;
-    isAuthenticated?: boolean;
-    createdAt: string;
-    updatedAt: string;
-    profilePicture?: string;
-    preferences?: {
-      language: 'en' | 'ko';
-      soundEnabled: boolean;
-      notificationsEnabled: boolean;
-    };
-    stats?: {
-      gamesPlayed: number;
-      gamesWon: number;
-      totalScore: number;
-      winRate: number;
-    };
-  };
-  token: string;
-  refreshToken: string;
-}
+// Re-export types for backward compatibility
+export type {
+  ApiResponse,
+  LoginCredentials,
+  RegisterData,
+  AuthResponse,
+};
 
 // Storage keys
 const TOKEN_STORAGE_KEY = '@choseong_bingo/access_token';
@@ -160,7 +132,7 @@ class ApiService {
         headers,
       });
 
-      const data = await response.json();
+      const data = await handleResponse<ApiResponse<T>>(response);
 
       // Handle token refresh if access token is expired
       if (response.status === 401 && this.refreshToken) {
@@ -172,7 +144,7 @@ class ApiService {
             ...options,
             headers,
           });
-          return await retryResponse.json();
+          return await handleResponse<ApiResponse<T>>(retryResponse);
         } catch (refreshError) {
           // Refresh failed, clear tokens
           await this.clearTokens();
@@ -205,7 +177,7 @@ class ApiService {
       }),
     });
 
-    const data = await response.json();
+    const data = await handleResponse<ApiResponse<TokenRefreshResponse>>(response);
 
     if (!data.success) {
       throw new Error(data.error || 'Token refresh failed');
@@ -300,7 +272,7 @@ class ApiService {
   /**
    * Create a new game room
    */
-  async createRoom(roomData: { name: string; max_players?: number }): Promise<any> {
+  async createRoom(roomData: CreateRoomData): Promise<Room> {
     const response = await this.makeRequest('/api/rooms', {
       method: 'POST',
       headers: {
@@ -320,7 +292,7 @@ class ApiService {
   /**
    * Join a room by code
    */
-  async joinRoom(roomCode: string): Promise<any> {
+  async joinRoom(roomCode: string): Promise<Room> {
     const response = await this.makeRequest('/api/rooms/join', {
       method: 'POST',
       headers: {
@@ -340,7 +312,7 @@ class ApiService {
   /**
    * Get room details with players
    */
-  async getRoom(roomId: string): Promise<any> {
+  async getRoom(roomId: string): Promise<Room> {
     const response = await this.makeRequest(`/api/rooms/${roomId}`);
 
     if (!response.success || !response.data) {
@@ -354,7 +326,7 @@ class ApiService {
   /**
    * Get list of available rooms
    */
-  async getAvailableRooms(): Promise<any[]> {
+  async getAvailableRooms(): Promise<Room[]> {
     const response = await this.makeRequest<any[]>('/api/rooms');
 
     if (!response.success || !response.data) {

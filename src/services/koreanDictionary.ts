@@ -1,20 +1,22 @@
 /**
  * Korean Dictionary Service
- * 
+ *
  * Provides validation for Korean words using:
  * 1. Consonant matching validation
  * 2. Official Korean dictionary API validation
  */
 import * as Hangul from 'hangul-js';
+import { KOREAN_DICT_CONFIG } from '../constants/config';
+import { parseKoreanDictionaryXML, DictionaryXMLResponse } from '../utils/xmlParser';
 
 // API Configuration
-const KOREAN_DICT_API_BASE = 'https://krdict.korean.go.kr/api/search';
+const KOREAN_DICT_API_BASE = KOREAN_DICT_CONFIG.API_BASE_URL;
 
 // Real API key for Korean dictionary
-const API_KEY = '248B977427652B517DEB6EE0B6549E7C'; // Working API key provided
+const API_KEY = KOREAN_DICT_CONFIG.API_KEY;
 
 // Development mode flag - now false since we have a real API key
-const DEVELOPMENT_MODE = false; // Set to true for offline testing
+const DEVELOPMENT_MODE = KOREAN_DICT_CONFIG.DEVELOPMENT_MODE;
 
 /**
  * Interface for word validation result
@@ -25,19 +27,6 @@ export interface WordValidationResult {
   existsInDictionary: boolean;
   error?: string;
   definition?: string;
-}
-
-/**
- * Interface for parsed XML response from Korean dictionary
- */
-interface DictionaryXMLResponse {
-  total: number;
-  items?: Array<{
-    word: string;
-    pos?: string;
-    definition?: string;
-  }>;
-  error?: string;
 }
 
 /**
@@ -226,52 +215,7 @@ export class KoreanDictionaryService {
    * Uses regex-based parsing compatible with React Native
    */
   private parseXMLResponse(xmlText: string): DictionaryXMLResponse {
-    try {
-      // Extract total count using regex (main indicator of word existence)
-      const totalMatch = xmlText.match(/<total>(\d+)<\/total>/);
-      const total = totalMatch ? parseInt(totalMatch[1], 10) : 0;
-
-      // If no results, return early
-      if (total === 0) {
-        return { total: 0 };
-      }
-
-      // Extract word items if they exist
-      const items: Array<{ word: string, pos?: string, definition?: string }> = [];
-
-      // Match all <item> blocks
-      const itemRegex = /<item[\s\S]*?<\/item>/g;
-      const itemMatches = xmlText.match(itemRegex);
-
-      if (itemMatches) {
-        for (const itemXml of itemMatches) {
-          // Extract word, pos, and definition from each item
-          const wordMatch = itemXml.match(/<word>([^<]*)<\/word>/);
-          const posMatch = itemXml.match(/<pos>([^<]*)<\/pos>/);
-          const defMatch = itemXml.match(/<definition>([^<]*)<\/definition>/);
-
-          if (wordMatch) {
-            items.push({
-              word: wordMatch[1] || '',
-              pos: posMatch ? posMatch[1] : undefined,
-              definition: defMatch ? defMatch[1] : undefined
-            });
-          }
-        }
-      }
-
-      return {
-        total,
-        items: items.length > 0 ? items : undefined
-      };
-
-    } catch (error) {
-      console.error('XML parsing error:', error);
-      return {
-        total: 0,
-        error: 'Failed to parse XML response'
-      };
-    }
+    return parseKoreanDictionaryXML(xmlText);
   }
 
 

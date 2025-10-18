@@ -6,14 +6,16 @@ import { io, Socket } from 'socket.io-client';
 import { useStore } from '../store';
 import { SocketEvents, Room, ChoseongPair, BingoLine } from '../types';
 import logger from '../utils/logger';
-import { API_CONFIG } from '../constants/config';
+import { API_CONFIG, SOCKET_CONFIG } from '../constants/config';
 import { navigate } from './navigation';
+import { safeStoreUpdate } from '../utils/socketHelpers';
+import { simulateServerEvents } from '../utils/mockHelpers';
 
 class SocketService {
   private socket: Socket | null = null;
   private connectionState: 'disconnected' | 'connecting' | 'connected' | 'error' = 'disconnected';
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
+  private maxReconnectAttempts = SOCKET_CONFIG.MAX_RECONNECT_ATTEMPTS;
   private serverUrl: string;
 
   constructor(serverUrl: string = API_CONFIG.SOCKET_URL) {
@@ -121,12 +123,12 @@ class SocketService {
           token,
         },
         transports: ['polling', 'websocket'],
-        timeout: 10000,
+        timeout: SOCKET_CONFIG.CONNECTION_TIMEOUT,
         forceNew: false,  // ❌ CRITICAL FIX: Don't force new connections
         autoConnect: true,
         reconnection: true,
-        reconnectionAttempts: 5,
-        reconnectionDelay: 1000,
+        reconnectionAttempts: SOCKET_CONFIG.RECONNECTION_ATTEMPTS,
+        reconnectionDelay: SOCKET_CONFIG.RECONNECTION_DELAY,
       });
 
       this.setupEventListeners();
@@ -209,13 +211,35 @@ class SocketService {
   private setupGameEventListeners(): void {
     if (!this.socket) return;
 
+    this.setupRoomEventListeners();
+    this.setupGamePhaseListeners();
+    this.setupTurnEventListeners();
+    this.setupWordEventListeners();
+    this.setupRankingEventListeners();
+    this.setupErrorEventListeners();
+  }
+
+  /**
+   * Setup room-related event listeners
+   */
+  private setupRoomEventListeners(): void {
+    if (!this.socket) return;
+
     const store = useStore.getState();
 
-    // Room events
     this.socket.on('room-updated', (room: Room) => {
       console.log('📡 Room updated:', room);
       store.updateRoom(room);
     });
+  }
+
+  /**
+   * Setup game phase event listeners
+   */
+  private setupGamePhaseListeners(): void {
+    if (!this.socket) return;
+
+    const store = useStore.getState();
 
     this.socket.on('game-started', (data: { choseongPairs: ChoseongPair[] }) => {
       console.log('🎮 Game started:', data);
@@ -236,7 +260,7 @@ class SocketService {
     this.socket.on('game-phase-started', (data: { turnOrder: string[]; boards?: Record<string, string[][]>; turnDuration?: number }) => {
       console.log('🎲 Game phase started:', data.turnOrder);
       // 🔎 Diagnostics: verify board payload
-      try {
+      safeStoreUpdate(() => {
         const userId = (useStore.getState() as any).user?.id;
         const keys = Object.keys(data.boards || {});
         const myWords = userId && data.boards?.[userId]
@@ -244,14 +268,13 @@ class SocketService {
           : 0;
         console.log('🧩 [DEBUG] Boards keys:', keys);
         console.log('🧩 [DEBUG] My board words:', myWords);
-      } catch (e) {
-        console.log('🧩 [DEBUG] Boards diagnostics error:', e);
-      }
+      }, '🧩 [DEBUG] Boards diagnostics error');
+
       store.setGameStatus('playing');
       // Reset any previous selection
-      try { (store as any).setCurrentWord?.(''); } catch {}
+      safeStoreUpdate(() => { (store as any).setCurrentWord?.(''); });
       // Reset server-authoritative ranking for new game
-      try { (store as any).resetRanking?.(); } catch {}
+      safeStoreUpdate(() => { (store as any).resetRanking?.(); });
       // Freeze boards if provided by server
       if (data.boards && typeof (store as any).setInGameBoards === 'function') {
         (store as any).setInGameBoards(data.boards);
@@ -261,9 +284,28 @@ class SocketService {
       store.initializeTurns(data.turnOrder);
     });
 
+    this.socket.on('bingo-achieved', (data: { playerId: string; lines: BingoLine[] }) => {
+      console.log('🎉 Bingo achieved by:', data.playerId, 'Lines:', data.lines);
+      // Handle bingo achievement
+    });
+
+    this.socket.on('game-ended', (data: { winnerId: string; rankings: any[] }) => {
+      console.log('🏆 Game ended. Winner:', data.winnerId);
+      store.setGameStatus('finished');
+    });
+  }
+
+  /**
+   * Setup turn-related event listeners
+   */
+  private setupTurnEventListeners(): void {
+    if (!this.socket) return;
+
+    const store = useStore.getState();
+
     this.socket.on('turn-changed', (data: { currentPlayerId: string; timeRemaining: number }) => {
       console.log('🔄 Turn changed to:', data.currentPlayerId);
-      try {
+      safeStoreUpdate(() => {
         const state = useStore.getState() as any;
         let order: string[] = Array.isArray(state.turnOrder) ? state.turnOrder : [];
         const players = state.currentRoom?.players || state.room?.players || [];
@@ -279,14 +321,14 @@ class SocketService {
           store.initializeTurns(ids);
         }
         (store as any).setCurrentWord?.('');
-      } catch {}
+      });
       store.startTurn(data.currentPlayerId, data.timeRemaining);
     });
 
     // New game lifecycle events (server authoritative)
     this.socket.on('game:turn_started', (data: { playerId: string; remainingTime: number }) => {
       console.log('▶️ Turn started for:', data.playerId);
-      try {
+      safeStoreUpdate(() => {
         const state = useStore.getState() as any;
         let order: string[] = Array.isArray(state.turnOrder) ? state.turnOrder : [];
         const players = state.currentRoom?.players || state.room?.players || [];
@@ -303,18 +345,23 @@ class SocketService {
         }
         // Clear any previous selection on new turn start
         (store as any).setCurrentWord?.('');
-      } catch (e) {
-        console.warn('Turn init check failed:', e);
-      }
+      }, 'Turn init check failed');
       store.startTurn(data.playerId, data.remainingTime);
     });
+  }
+
+  /**
+   * Setup word-related event listeners
+   */
+  private setupWordEventListeners(): void {
+    if (!this.socket) return;
+
+    const store = useStore.getState();
 
     // Cross-device selection highlight
     this.socket.on('game:word_selected', (data: { word: string; playerId: string }) => {
       console.log('🔵 Word selected (highlight):', data.word, 'by', data.playerId);
-      try {
-        (store as any).setCurrentWord?.(data.word);
-      } catch {}
+      safeStoreUpdate(() => { (store as any).setCurrentWord?.(data.word); });
     });
 
     this.socket.on('game:word_submitted', (data: { word: string; playerId: string }) => {
@@ -324,53 +371,53 @@ class SocketService {
       store.setCurrentWord(data.word);
     });
 
-    // Per-user line counts broadcast from server
-    this.socket.on('game:line_counts', (data: { counts: Record<string, number> }) => {
-      try {
-        console.log('🟨 [SOCKET] game:line_counts received:', data.counts);
-        (store as any).setLineCountsByPlayerId?.(data.counts || {});
-      } catch (e) {
-        console.warn('Failed to apply line counts:', e);
-      }
-    });
-
-    // Server-authoritative ranking updates
-    this.socket.on('game:ranking_update', (data: { finishOrder: string[]; ranksByPlayerId: Record<string, number> }) => {
-      try {
-        console.log('🏁 [SOCKET] game:ranking_update received:', data);
-        (store as any).setRanking?.(Array.isArray(data.finishOrder) ? data.finishOrder : [], data.ranksByPlayerId || {});
-      } catch (e) {
-        console.warn('Failed to apply ranking update:', e);
-      }
-    });
-
-    // Game finished: stop timers, set status, and navigate to results
-    this.socket.on('game:finished', (data: { winnerId: string; finalScores: Array<{ playerId: string; score: number }> }) => {
-      try {
-        console.log('🏁 [SOCKET] game:finished received:', data);
-        (store as any).resetTimer?.();
-        (store as any).setGameStatus?.('finished');
-        navigate('ResultScreen');
-      } catch (e) {
-        console.warn('Failed to process game finished:', e);
-      }
-    });
-
     this.socket.on('word-called', (data: { word: string; playerId: string; affectedCells: any }) => {
       console.log('📢 Word called:', data.word, 'by', data.playerId);
       store.markCell('', data.word); // Mark cells with the called word
       store.setCurrentWord(data.word);
     });
+  }
 
-    this.socket.on('bingo-achieved', (data: { playerId: string; lines: BingoLine[] }) => {
-      console.log('🎉 Bingo achieved by:', data.playerId, 'Lines:', data.lines);
-      // Handle bingo achievement
+  /**
+   * Setup ranking and scoring event listeners
+   */
+  private setupRankingEventListeners(): void {
+    if (!this.socket) return;
+
+    const store = useStore.getState();
+
+    // Per-user line counts broadcast from server
+    this.socket.on('game:line_counts', (data: { counts: Record<string, number> }) => {
+      safeStoreUpdate(() => {
+        console.log('🟨 [SOCKET] game:line_counts received:', data.counts);
+        (store as any).setLineCountsByPlayerId?.(data.counts || {});
+      }, 'Failed to apply line counts');
     });
 
-    this.socket.on('game-ended', (data: { winnerId: string; rankings: any[] }) => {
-      console.log('🏆 Game ended. Winner:', data.winnerId);
-      store.setGameStatus('finished');
+    // Server-authoritative ranking updates
+    this.socket.on('game:ranking_update', (data: { finishOrder: string[]; ranksByPlayerId: Record<string, number> }) => {
+      safeStoreUpdate(() => {
+        console.log('🏁 [SOCKET] game:ranking_update received:', data);
+        (store as any).setRanking?.(Array.isArray(data.finishOrder) ? data.finishOrder : [], data.ranksByPlayerId || {});
+      }, 'Failed to apply ranking update');
     });
+
+    // Game finished: stop timers, set status, and navigate to results
+    this.socket.on('game:finished', (data: { winnerId: string; finalScores: Array<{ playerId: string; score: number }> }) => {
+      safeStoreUpdate(() => {
+        console.log('🏁 [SOCKET] game:finished received:', data);
+        (store as any).resetTimer?.();
+        (store as any).setGameStatus?.('finished');
+        navigate('ResultScreen');
+      }, 'Failed to process game finished');
+    });
+  }
+
+  /**
+   * Setup error event listeners
+   */
+  private setupErrorEventListeners(): void {
+    if (!this.socket) return;
 
     this.socket.on('error', (data: { message: string }) => {
       console.error('🚨 Server error:', data.message);
@@ -575,15 +622,10 @@ class SocketService {
 
   /**
    * Mock server events for development/testing
+   * @deprecated Use simulateServerEvents from utils/mockHelpers instead
    */
   simulateServerEvents(): void {
-    if (!__DEV__) return;
-
-    console.log('🧪 Starting mock server event simulation');
-    // Simulate game start
-    setTimeout(() => {
-      useStore.getState().setGameStatus('voting');
-    }, 5000);
+    simulateServerEvents();
   }
 
   // 🎯 PREGAME BOARD STATUS METHODS

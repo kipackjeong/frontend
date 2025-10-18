@@ -19,16 +19,15 @@ const resolveDevHost = (): string => {
 const DEV_HOST = resolveDevHost();
 const DEV_BASE = `http://${DEV_HOST}:3001`;
 
-export const API_CONFIG = {
-  BASE_URL: __DEV__ ? DEV_BASE : 'https://chosung-bingo-backend.salmonwave-d39f32dc.westus2.azurecontainerapps.io',
-  SOCKET_URL: __DEV__ ? DEV_BASE : 'https://chosung-bingo-backend.salmonwave-d39f32dc.westus2.azurecontainerapps.io',
-  // BASE_URL: 'https://chosung-bingo-backend.salmonwave-d39f32dc.westus2.azurecontainerapps.io',
-  // SOCKET_URL: 'https://chosung-bingo-backend.salmonwave-d39f32dc.westus2.azurecontainerapps.io',
+const PROD_API = (process.env as any)?.EXPO_PUBLIC_API_URL || 'https://chosung-bingo-backend.salmonwave-d39f32dc.westus2.azurecontainerapps.io';
+const PROD_SOCKET = (process.env as any)?.EXPO_PUBLIC_SOCKET_URL || PROD_API;
 
+export const API_CONFIG = {
+  BASE_URL: __DEV__ ? DEV_BASE : PROD_API,
+  SOCKET_URL: __DEV__ ? DEV_BASE : PROD_SOCKET,
   TIMEOUT: 10000,
 } as const
 
-// Export API_BASE_URL for backward compatibility
 export const API_BASE_URL = API_CONFIG.BASE_URL
 
 export const GAME_CONFIG = {
@@ -135,4 +134,17 @@ export const DEV_CONFIG = {
   ENABLE_DEBUG_LOGS: __DEV__,
   MOCK_DELAY: 1000,
   QUICK_FILL_ENABLED: __DEV__,
+} as const;
+
+export const SOCKET_CONFIG = {
+  MAX_RECONNECT_ATTEMPTS: 5,
+  RECONNECTION_DELAY: 1000,
+  CONNECTION_TIMEOUT: 10000,
+  RECONNECTION_ATTEMPTS: 5,
+} as const;
+
+export const KOREAN_DICT_CONFIG = {
+  API_BASE_URL: 'https://krdict.korean.go.kr/api/search',
+  API_KEY: '248B977427652B517DEB6EE0B6549E7C',
+  DEVELOPMENT_MODE: false,
 } as const;
