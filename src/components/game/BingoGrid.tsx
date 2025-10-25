@@ -4,10 +4,12 @@ import {
   TextInput,
   ActivityIndicator,
   StyleSheet,
+  Pressable,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
 import { CELL_SIZE, GRID_GAP, BORDER_RADIUS, BORDER_COLOR, CARD_BORDER_COLOR, CARD_BORDER_WIDTH } from './bingoTheme';
 import type { BingoCell } from '../../hooks/useBingoBoard';
+const RNIcon: any = Icon;
 
 interface BingoGridProps {
   bingoBoard: BingoCell[][];
@@ -19,7 +21,7 @@ interface BingoGridProps {
   editable?: boolean;
 }
 
-const BingoGrid: React.FC<BingoGridProps> = ({
+const BingoGrid = ({
   bingoBoard,
   timeLeft,
   getCellStyle,
@@ -27,18 +29,51 @@ const BingoGrid: React.FC<BingoGridProps> = ({
   onCellFocus,
   onCellBlur,
   editable = true,
-}) => {
+}: BingoGridProps) => {
   const inputRefs = useRef<TextInput[][]>([]);
+  const rows = bingoBoard.length;
+  const cols = bingoBoard[0]?.length ?? 5;
+
+  const focusCell = (row: number, col: number) => {
+    const ref = inputRefs.current[row]?.[col];
+    if (ref && typeof ref.focus === 'function') {
+      ref.focus();
+    }
+  };
+
+  const moveToNext = (row: number, col: number) => {
+    const idx = row * cols + col;
+    const nextIdx = idx + 1;
+    if (nextIdx < rows * cols) {
+      const nextRow = Math.floor(nextIdx / cols);
+      const nextCol = nextIdx % cols;
+      focusCell(nextRow, nextCol);
+    } else {
+      const ref = inputRefs.current[row]?.[col];
+      if (ref && typeof ref.blur === 'function') ref.blur();
+    }
+  };
 
   return (
     <View style={styles.boardSection}>
       <View style={styles.boardCard}>
         <View style={styles.boardContent}>
           <View style={styles.bingoGrid}>
-            {bingoBoard.map((row, rowIndex) => (
+            {bingoBoard.map((row: BingoCell[], rowIndex: number) => (
               <View key={rowIndex} style={styles.bingoRow}>
-                {row.map((cell, colIndex) => (
-                  <View key={cell.id} style={styles.cellContainer}>
+                {row.map((cell: BingoCell, colIndex: number) => (
+                  <Pressable
+                    key={cell.id}
+                    style={styles.cellContainer}
+                    onPress={() => {
+                      if (timeLeft > 0 && editable) {
+                        focusCell(rowIndex, colIndex);
+                      }
+                    }}
+                    disabled={!(timeLeft > 0 && editable)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Cell ${rowIndex + 1}, ${colIndex + 1}`}
+                  >
                     <TextInput
                       ref={(ref) => {
                         if (!inputRefs.current[rowIndex]) {
@@ -46,12 +81,12 @@ const BingoGrid: React.FC<BingoGridProps> = ({
                         }
                         inputRefs.current[rowIndex][colIndex] = ref!;
                       }}
-                      style={[
+                      style={StyleSheet.flatten([
                         styles.cellInput,
                         cell.isFocused && styles.focusedInput,
                         cell.word && cell.isValid && styles.validInput,
                         cell.word && !cell.isValid && styles.invalidInput,
-                      ]}
+                      ])}
                       value={cell.word}
                       onChangeText={(text) => onCellChange(rowIndex, colIndex, text)}
                       onFocus={() => onCellFocus(rowIndex, colIndex)}
@@ -61,11 +96,15 @@ const BingoGrid: React.FC<BingoGridProps> = ({
                       textAlign="center"
                       editable={timeLeft > 0 && editable} // Allow editing until timer expires and not locked by confirm
                       maxLength={10}
+                      returnKeyType="next"
+                      blurOnSubmit={false}
+                      onSubmitEditing={() => moveToNext(rowIndex, colIndex)}
+                      selectTextOnFocus
                     />
 
                     {/* Enhanced validation indicator */}
                     {cell.word && (
-                      <View style={styles.validationIndicator}>
+                      <View style={styles.validationIndicator} pointerEvents="none">
                         {cell.isValidating ? (
                           <ActivityIndicator
                             size="small"
@@ -73,7 +112,7 @@ const BingoGrid: React.FC<BingoGridProps> = ({
                             style={styles.validationSpinner}
                           />
                         ) : (
-                          <Icon
+                          <RNIcon
                             name={cell.isValid ? "check" : "x"}
                             size={12}
                             color={cell.isValid ? "#22c55e" : "#ef4444"}
@@ -81,7 +120,7 @@ const BingoGrid: React.FC<BingoGridProps> = ({
                         )}
                       </View>
                     )}
-                  </View>
+                  </Pressable>
                 ))}
               </View>
             ))}
@@ -143,6 +182,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     minHeight: 40,
     paddingVertical: 4,
+    width: '100%',
+    height: '100%',
+    paddingHorizontal: 8,
   },
   focusedInput: {
     color: '#1f2937',

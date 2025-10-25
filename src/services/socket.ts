@@ -10,6 +10,7 @@ import { API_CONFIG, SOCKET_CONFIG } from '../constants/config';
 import { navigate } from './navigation';
 import { safeStoreUpdate } from '../utils/socketHelpers';
 import { simulateServerEvents } from '../utils/mockHelpers';
+import { toCurrentRoom } from '../utils/roomAdapter';
 
 class SocketService {
   private socket: Socket | null = null;
@@ -225,11 +226,60 @@ class SocketService {
   private setupRoomEventListeners(): void {
     if (!this.socket) return;
 
-    const store = useStore.getState();
+    const storeGetter = useStore.getState;
 
+    // Legacy/compat: simple room-updated event from older flows
     this.socket.on('room-updated', (room: Room) => {
       console.log('📡 Room updated:', room);
-      store.updateRoom(room);
+      try {
+        const s = storeGetter();
+        // Update legacy slice for backward compatibility
+        s.updateRoom?.(room as any);
+      } catch {}
+    });
+
+    // Centralized handler to normalize room payloads and enforce <2 players rule during active phases
+    const applyRoomUpdate = (raw: any) => {
+      try {
+        const s = storeGetter();
+        const userId = (s as any).user?.id;
+        const updated = raw?.updatedRoom ?? raw?.room ?? raw;
+        const current = toCurrentRoom(updated, userId);
+        // Update the centralized CurrentRoom store
+        (s as any).setCurrentRoom?.(current);
+
+        // Enforce <2 players rule only if pregame/ingame active
+        const playerCount = Array.isArray(current.players) ? current.players.length : 0;
+        const isPreGame = !!(s as any).pregameRoomId || ((s as any).room?.status === 'voting' || (s as any).room?.status === 'creating');
+        const isInGame = ((s as any).room?.status === 'playing') || ((s as any).currentRoom?.status === 'playing');
+        if (playerCount < 2 && (isPreGame || isInGame)) {
+          safeStoreUpdate(() => {
+            try { (s as any).resetTimer?.(); } catch {}
+            try { (s as any).clearPregame?.(); } catch {}
+            try { (s as any).setGameStatus?.('finished'); } catch {}
+          }, 'Failed to reset state on <2 players');
+          // Navigate remaining user back to lobby for this room
+          try { navigate('RoomLobby', { roomId: current.id, roomCode: current.code } as any); } catch {}
+        }
+      } catch (e) {
+        console.warn('⚠️ Failed to apply room update:', e);
+      }
+    };
+
+    // Enhanced room lifecycle events
+    this.socket.on('room:player_joined', (data: any) => applyRoomUpdate(data));
+    this.socket.on('room:player_left', (data: any) => applyRoomUpdate(data));
+    this.socket.on('room:player_ready_changed', (data: any) => applyRoomUpdate(data));
+    this.socket.on('room:updated', (data: any) => applyRoomUpdate(data));
+    this.socket.on('room:closed', (data: any) => {
+      const s = storeGetter();
+      console.log('🏠 Room closed (central handler):', data);
+      safeStoreUpdate(() => {
+        try { (s as any).clearPregame?.(); } catch {}
+        try { (s as any).clearCurrentRoom?.(); } catch {}
+        try { (s as any).resetTimer?.(); } catch {}
+      }, 'Failed to clear state on room:closed');
+      try { navigate('HomeScreen'); } catch {}
     });
   }
 

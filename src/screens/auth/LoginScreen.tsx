@@ -168,29 +168,7 @@ const LoginScreen = () => {
           >
             {/* Header Section */}
             <View style={styles.headerSection}>
-              <View style={styles.logoContainer}>
-                <View style={styles.mainIcon}>
-                  <LinearGradient
-                    colors={['#fef3e0', '#fed7aa']}
-                    style={styles.iconGradient}
-                  >
-                    <Icon name="coffee" size={32} color="#8b4513" />
-                  </LinearGradient>
-                  <View style={styles.smallIcon}>
-                    <LinearGradient
-                      colors={['#f0fdf4', '#dcfce7']}
-                      style={styles.smallIconGradient}
-                    >
-                      <Icon name="book-open" size={16} color="#228b22" />
-                    </LinearGradient>
-                  </View>
-                </View>
-              </View>
-
-              <Text style={styles.title}>Word Game Café</Text>
-              <Text style={styles.subtitle}>
-                Join our cozy community of word enthusiasts!
-              </Text>
+              <Text style={styles.title}>초성 빙고</Text>
             </View>
 
             {/* Auth Card */}
@@ -296,7 +274,7 @@ const LoginScreen = () => {
                         ) : (
                           <>
                             <Icon name="coffee" size={16} color="#ffffff" />
-                            <Text style={styles.buttonText}>Enter the Café</Text>
+                            <Text style={styles.buttonText}>Sign in</Text>
                           </>
                         )}
                       </View>

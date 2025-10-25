@@ -24,6 +24,8 @@ import { apiService } from '../../services/api';
 import { socketService } from '../../services/socket';
 import { KS_DEV_BOARDS } from '../../constants/devBoards';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { Room as ApiRoom } from '../../types/api';
+import type { CurrentRoom } from '../../store/slices/roomSlice';
 
 const { width, height } = Dimensions.get('window');
 
@@ -38,6 +40,35 @@ interface User {
 
 const DEV_KS_CODE_KEY = '@dev_ks_room_code';
 
+// Map backend API Room shape -> store CurrentRoom shape
+const toCurrentRoom = (room: ApiRoom, fallbackCreatorId?: string): CurrentRoom => {
+    const status = ((): CurrentRoom['status'] => {
+        // Collapse non-store statuses to 'waiting'
+        if (room.status === 'playing' || room.status === 'finished') return room.status;
+        return 'waiting';
+    })();
+    const players = (room.players || []).map((p: any) => ({
+        id: p.id,
+        username: p.username,
+        isHost: !!p.isHost,
+        isReady: !!p.isReady,
+        avatar: p.avatar ?? p.profilePicture ?? '',
+        boardCompleted: p.boardCompleted ?? false,
+    }));
+    const creatorId = room.hostId || players.find((p: any) => p.isHost)?.id || fallbackCreatorId || '';
+    const maxPlayers = (room as any).maxPlayers ?? (room as any).max_players ?? Math.max(1, players.length);
+    return {
+        id: room.id,
+        name: (room as any).name ?? '',
+        code: room.code,
+        creator_id: creatorId,
+        max_players: maxPlayers,
+        status,
+        players: players as any,
+        joinedAt: Date.now(),
+    } as CurrentRoom;
+};
+
 const HomeScreen = () => {
     const navigation = useNavigation<HomeScreenNavigationProp>();
     const user = useUser();
@@ -45,7 +76,6 @@ const HomeScreen = () => {
     const { setCurrentRoom } = useStore();
 
     const [showUserMenu, setShowUserMenu] = useState(false);
-    const [showJoinGamePopup, setShowJoinGamePopup] = useState(false);
     const [showRoomCodeInput, setShowRoomCodeInput] = useState(false);
     const [roomCodeInput, setRoomCodeInput] = useState('');
     const [isJoiningRoom, setIsJoiningRoom] = useState(false);
@@ -57,17 +87,17 @@ const HomeScreen = () => {
     const handleJoinGame = () => {
         setAvatarMood('focused');
         setTimeout(() => setAvatarMood('happy'), 3000);
-        setShowJoinGamePopup(true);
     };
 
     const handleCloseJoinGamePopup = () => {
-        setShowJoinGamePopup(false);
         setShowRoomCodeInput(false);
         setRoomCodeInput('');
     };
 
     const handleShowRoomCodeInput = () => {
+        // Open the popup and directly show the room code input view
         setShowRoomCodeInput(true);
+        setJoinError(null);
     };
 
     const handleBackToOptions = () => {
@@ -87,7 +117,7 @@ const HomeScreen = () => {
         try {
             const joinedRoom = await apiService.joinRoom(roomCodeInput.trim().toUpperCase());
 
-            setCurrentRoom(joinedRoom);
+            setCurrentRoom(toCurrentRoom(joinedRoom, user?.id));
             // Join the room via Socket.IO for real-time updates
             socketService.emit('room:join', { code: roomCodeInput.trim().toUpperCase() });
 
@@ -116,7 +146,7 @@ const HomeScreen = () => {
             const newRoom = await apiService.createRoom({ name: '' });
 
             // Populate room store with created room data
-            setCurrentRoom(newRoom);
+            setCurrentRoom(toCurrentRoom(newRoom, user?.id));
             socketService.emit('room:join', { code: newRoom.code });
 
             // Close popup and navigate to RoomLobby
@@ -315,7 +345,7 @@ const HomeScreen = () => {
                                     <Icon name="grid" size={16} color="#8b4513" />
                                     <Text style={styles.devButtonText}>Bingo Board (dev-room)</Text>
                                 </TouchableOpacity>
-                                
+
                                 {/* Dev: Auto-join ㄱㅅ room (use canonical code if present, else discover/create) */}
                                 <TouchableOpacity
                                     style={styles.devButton}
@@ -352,7 +382,7 @@ const HomeScreen = () => {
                                             if (targetRoom) {
                                                 // Join via REST and socket
                                                 const joined = await apiService.joinRoom(targetRoom.code);
-                                                setCurrentRoom(joined);
+                                                setCurrentRoom(toCurrentRoom(joined, user?.id));
                                                 socketService.emit('room:join', { code: joined.code });
                                                 navigation.navigate('PreGameBoardScreen', {
                                                     roomId: joined.id,
@@ -363,7 +393,7 @@ const HomeScreen = () => {
 
                                             // If not found, create a new DEV_ㄱㅅ room and go
                                             const newRoom = await apiService.createRoom({ name: 'DEV_ㄱㅅ' });
-                                            setCurrentRoom(newRoom);
+                                            setCurrentRoom(toCurrentRoom(newRoom, user?.id));
                                             socketService.emit('room:join', { code: newRoom.code });
                                             navigation.navigate('PreGameBoardScreen', {
                                                 roomId: newRoom.id,
@@ -386,9 +416,9 @@ const HomeScreen = () => {
                                     onPress={async () => {
                                         try {
                                             const newRoom = await apiService.createRoom({ name: 'DEV_ㄱㅅ' });
-                                            setCurrentRoom(newRoom);
+                                            setCurrentRoom(toCurrentRoom(newRoom, user?.id));
                                             socketService.emit('room:join', { code: newRoom.code });
-                                            try { await AsyncStorage.setItem(DEV_KS_CODE_KEY, (newRoom.code || '').toUpperCase()); } catch {}
+                                            try { await AsyncStorage.setItem(DEV_KS_CODE_KEY, (newRoom.code || '').toUpperCase()); } catch { }
                                             navigation.navigate('PreGameBoardScreen', {
                                                 roomId: newRoom.id,
                                                 winnerConsonant: 'ㄱㅅ'
@@ -455,7 +485,7 @@ const HomeScreen = () => {
                                             }
 
                                             // 3) Join socket room (no-ack) and set store, then allow a short settle time
-                                            setCurrentRoom(activeRoom);
+                                            setCurrentRoom(toCurrentRoom(activeRoom as ApiRoom, user?.id));
                                             socketService.emit('room:join', { code: activeRoom.code });
                                             await new Promise(r => setTimeout(r, 200));
 
@@ -472,7 +502,7 @@ const HomeScreen = () => {
                                                         votedBy: [],
                                                     }
                                                 } as any);
-                                            } catch {}
+                                            } catch { }
                                             // Randomly assign one of the ㄱㅅ dev boards for this player
                                             const devBoard = KS_DEV_BOARDS[Math.floor(Math.random() * KS_DEV_BOARDS.length)];
                                             const boardData = {
@@ -534,17 +564,53 @@ const HomeScreen = () => {
                                     <Icon name="zap" size={16} color="#8b4513" />
                                     <Text style={styles.devButtonText}>Jump to In-Game (Dev ㄱㅅ)</Text>
                                 </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={styles.devButton}
+                                    onPress={async () => {
+                                        try {
+                                            const meId = (user?.id || 'dev-me').toString();
+                                            const rivalId = 'dev-rival';
+                                            const me = { id: meId, username: user?.username || 'Me', isHost: true, isReady: true, avatar: 'M', boardCompleted: true } as any;
+                                            const rival = { id: rivalId, username: 'Rival', isHost: false, isReady: true, avatar: 'R', boardCompleted: true } as any;
+
+                                            setCurrentRoom({
+                                                id: 'dev-result-room',
+                                                name: 'DEV_Result',
+                                                code: 'RESULT',
+                                                creator_id: meId,
+                                                max_players: 2,
+                                                status: 'finished',
+                                                players: [me, rival],
+                                                joinedAt: Date.now(),
+                                            } as any);
+
+                                            try { useStore.setState({ turnOrder: [meId, rivalId] } as any); } catch { }
+                                            try { useStore.getState().setLineCountsByPlayerId?.({ [meId]: 5, [rivalId]: 3 }); } catch { }
+                                            try { useStore.getState().setRanking?.([], {} as any); } catch { }
+
+                                            navigation.navigate('ResultScreen' as never);
+                                        } catch (err) {
+                                            const msg = err instanceof Error ? err.message : 'Failed to open Result screen';
+                                            Alert.alert('Error', msg);
+                                        }
+                                    }}
+                                    activeOpacity={0.7}
+                                >
+                                    <Icon name="bar-chart-2" size={16} color="#8b4513" />
+                                    <Text style={styles.devButtonText}>Result Screen (2 players)</Text>
+                                </TouchableOpacity>
                             </View>
 
                             <Text style={styles.developmentNote}>
-                                🚧 These screens are only accessible in development mode
+                                These screens are only accessible in development mode
                             </Text>
                         </View>
                     )}
                 </ScrollView>
 
                 {/* Join Game Popup */}
-                {showJoinGamePopup && (
+                {showRoomCodeInput && (
                     <>
                         {/* Overlay */}
                         <TouchableOpacity
@@ -557,126 +623,62 @@ const HomeScreen = () => {
                         <View style={styles.popupContainer}>
                             <Card style={styles.popupCard}>
                                 <CardContent style={styles.popupContent}>
-                                    {!showRoomCodeInput ? (
-                                        /* Options View */
-                                        <>
-                                            <Text style={styles.popupTitle}>게임 참가하기</Text>
-                                            <Text style={styles.popupSubtitle}>어떤 방식으로 참가하시겠어요?</Text>
+                                    {/* Room Code Input View */}
+                                    <>
+                                        <View style={styles.codeInputHeader}>
+                                            <TouchableOpacity
+                                                style={styles.backButton}
+                                                onPress={handleBackToOptions}
+                                            >
+                                                <Icon name="arrow-left" size={20} color="#8b4513" />
+                                            </TouchableOpacity>
+                                            <Text style={styles.popupTitle}>방 코드 입력</Text>
+                                        </View>
 
-                                            <View style={styles.popupButtonsContainer}>
-                                                {/* Random Search Button */}
-                                                <TouchableOpacity
-                                                    style={[styles.popupButton, styles.randomButton]}
-                                                    activeOpacity={0.8}
+                                        <Text style={styles.popupSubtitle}>참가하실 방의 코드를 입력해주세요</Text>
+
+                                        <View style={styles.codeInputContainer}>
+                                            <Input
+                                                value={roomCodeInput}
+                                                onChangeText={setRoomCodeInput}
+                                                placeholder="방 코드 입력"
+                                                style={styles.codeInput}
+                                                maxLength={8}
+                                                autoCapitalize="characters"
+                                            />
+
+                                            {joinError && (
+                                                <Text style={styles.errorText}>{joinError}</Text>
+                                            )}
+
+                                            <TouchableOpacity
+                                                style={[styles.joinButton, (!roomCodeInput.trim() || isJoiningRoom) && styles.joinButtonDisabled]}
+                                                onPress={handleJoinWithCode}
+                                                disabled={!roomCodeInput.trim() || isJoiningRoom}
+                                                activeOpacity={0.8}
+                                            >
+                                                <LinearGradient
+                                                    colors={(roomCodeInput.trim() && !isJoiningRoom)
+                                                        ? ['#059669', '#047857']
+                                                        : ['#9ca3af', '#6b7280']
+                                                    }
+                                                    style={styles.joinButtonGradient}
                                                 >
-                                                    <LinearGradient
-                                                        colors={['#3b82f6', '#1d4ed8']}
-                                                        style={styles.popupButtonGradient}
-                                                    >
-                                                        <Icon name="shuffle" size={20} color="#ffffff" />
-                                                        <Text style={styles.popupButtonText}>랜덤 찾기</Text>
-                                                    </LinearGradient>
-                                                </TouchableOpacity>
-
-                                                {/* Join with Code Button */}
-                                                <TouchableOpacity
-                                                    style={[styles.popupButton, styles.codeButton]}
-                                                    onPress={handleShowRoomCodeInput}
-                                                    activeOpacity={0.8}
-                                                >
-                                                    <LinearGradient
-                                                        colors={['#059669', '#047857']}
-                                                        style={styles.popupButtonGradient}
-                                                    >
-                                                        <Icon name="key" size={20} color="#ffffff" />
-                                                        <Text style={styles.popupButtonText}>방 코드로 참가</Text>
-                                                    </LinearGradient>
-                                                </TouchableOpacity>
-
-                                                {/* Create Room Button */}
-                                                <TouchableOpacity
-                                                    style={[styles.popupButton, styles.createButton, isCreatingRoom && styles.popupButtonDisabled]}
-                                                    onPress={handleCreateRoom}
-                                                    disabled={isCreatingRoom}
-                                                    activeOpacity={0.8}
-                                                >
-                                                    <LinearGradient
-                                                        colors={isCreatingRoom ? ['#9ca3af', '#6b7280'] : ['#8b4513', '#d97706']}
-                                                        style={styles.popupButtonGradient}
-                                                    >
-                                                        {isCreatingRoom ? (
-                                                            <>
-                                                                <ActivityIndicator size="small" color="#ffffff" />
-                                                                <Text style={styles.popupButtonText}>방 만드는 중...</Text>
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <Icon name="plus" size={20} color="#ffffff" />
-                                                                <Text style={styles.popupButtonText}>방 만들기</Text>
-                                                            </>
-                                                        )}
-                                                    </LinearGradient>
-                                                </TouchableOpacity>
-                                            </View>
-                                        </>
-                                    ) : (
-                                        /* Room Code Input View */
-                                        <>
-                                            <View style={styles.codeInputHeader}>
-                                                <TouchableOpacity
-                                                    style={styles.backButton}
-                                                    onPress={handleBackToOptions}
-                                                >
-                                                    <Icon name="arrow-left" size={20} color="#8b4513" />
-                                                </TouchableOpacity>
-                                                <Text style={styles.popupTitle}>방 코드 입력</Text>
-                                            </View>
-
-                                            <Text style={styles.popupSubtitle}>참가하실 방의 코드를 입력해주세요</Text>
-
-                                            <View style={styles.codeInputContainer}>
-                                                <Input
-                                                    value={roomCodeInput}
-                                                    onChangeText={setRoomCodeInput}
-                                                    placeholder="방 코드 입력"
-                                                    style={styles.codeInput}
-                                                    maxLength={8}
-                                                    autoCapitalize="characters"
-                                                />
-
-                                                {joinError && (
-                                                    <Text style={styles.errorText}>{joinError}</Text>
-                                                )}
-
-                                                <TouchableOpacity
-                                                    style={[styles.joinButton, (!roomCodeInput.trim() || isJoiningRoom) && styles.joinButtonDisabled]}
-                                                    onPress={handleJoinWithCode}
-                                                    disabled={!roomCodeInput.trim() || isJoiningRoom}
-                                                    activeOpacity={0.8}
-                                                >
-                                                    <LinearGradient
-                                                        colors={(roomCodeInput.trim() && !isJoiningRoom)
-                                                            ? ['#059669', '#047857']
-                                                            : ['#9ca3af', '#6b7280']
-                                                        }
-                                                        style={styles.joinButtonGradient}
-                                                    >
-                                                        {isJoiningRoom ? (
-                                                            <>
-                                                                <ActivityIndicator size="small" color="#ffffff" />
-                                                                <Text style={styles.joinButtonText}>참가 중...</Text>
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <Icon name="log-in" size={18} color="#ffffff" />
-                                                                <Text style={styles.joinButtonText}>참가하기</Text>
-                                                            </>
-                                                        )}
-                                                    </LinearGradient>
-                                                </TouchableOpacity>
-                                            </View>
-                                        </>
-                                    )}
+                                                    {isJoiningRoom ? (
+                                                        <>
+                                                            <ActivityIndicator size="small" color="#ffffff" />
+                                                            <Text style={styles.joinButtonText}>참가 중...</Text>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Icon name="log-in" size={18} color="#ffffff" />
+                                                            <Text style={styles.joinButtonText}>참가하기</Text>
+                                                        </>
+                                                    )}
+                                                </LinearGradient>
+                                            </TouchableOpacity>
+                                        </View>
+                                    </>
                                 </CardContent>
                             </Card>
                         </View>

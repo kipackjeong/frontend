@@ -1,11 +1,12 @@
 import React, { useMemo, useState, useCallback } from 'react';
-import { View, Text, SafeAreaView, StyleSheet, TouchableOpacity, Alert, ScrollView } from 'react-native';
+import { View, Text, SafeAreaView, StyleSheet, TouchableOpacity, Alert, ScrollView, BackHandler } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { InGameAvatarRow, TimerDisplay } from '../../components/game';
 import Icon from 'react-native-vector-icons/Feather';
-import { InGameAvatarRow } from '../../components/game';
 import { BingoBoard, BingoCell as StoreBingoCell } from '../../types';
 import { useStore } from '../../store';
 import { socketService } from '../../services/socket';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 
 const CELL_SIZE = 60;
 const GRID_SIZE = 5;
@@ -39,6 +40,12 @@ const InGameBoardScreen: React.FC = () => {
   }, [selectedChoseongPair]);
 
   const timeRemaining = currentTurn?.timeRemaining ?? 0;
+
+  const formatTime = useCallback((seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  }, []);
 
   const markedCount = useMemo(() => {
     if (!myBoard) return 0;
@@ -134,7 +141,42 @@ const InGameBoardScreen: React.FC = () => {
     return fromPregame;
   }, [room?.players, currentRoom?.players, pregamePlayers]);
 
-  const roomCode = useMemo(() => room?.code || (currentRoom as any)?.code || '', [room?.code, (currentRoom as any)?.code]);
+  const navigation = useNavigation<any>();
+
+  // formatTime is already defined above; use the existing helper
+
+  // Lock-down: only leave via explicit button; block hardware back
+  useFocusEffect(
+    React.useCallback(() => {
+      const onBack = () => {
+        Alert.alert('Locked In Room', 'Use the top-right leave button to exit this room.');
+        return true; // prevent default back behavior
+      };
+      BackHandler.addEventListener('hardwareBackPress', onBack);
+      return () => BackHandler.removeEventListener('hardwareBackPress', onBack);
+    }, [room?.id, (currentRoom as any)?.id, navigation])
+  );
+
+  const handleLeaveRoom = () => {
+    const activeRoomId = (room as any)?.id || (currentRoom as any)?.id;
+    if (!activeRoomId) return;
+    Alert.alert(
+      'Leave Room?',
+      'Are you sure you want to leave this room?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Leave',
+          style: 'destructive',
+          onPress: () => {
+            try { socketService.emit('room:leave', activeRoomId); } catch {}
+            try { useStore.getState().clearCurrentRoom?.(); } catch {}
+            navigation.navigate('HomeScreen' as never);
+          }
+        }
+      ]
+    );
+  };
 
   const handleSelectCell = useCallback((cell: StoreBingoCell) => {
     // Guard: must be my turn
@@ -177,6 +219,13 @@ const InGameBoardScreen: React.FC = () => {
     <SafeAreaView style={styles.container}>
       <LinearGradient colors={['#FFFFFF', '#f5f1eb']} style={styles.backgroundGradient}>
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {/* Top Leave Button */}
+          <View style={{ position: 'relative' }}>
+            <TouchableOpacity onPress={handleLeaveRoom} style={styles.leaveButton} activeOpacity={0.8}>
+              <Icon name="x" size={20} color="#FF4444" />
+            </TouchableOpacity>
+          </View>
+
           {/* Consonant Badge */}
           <View style={styles.modernConsonantContainer}>
             <View style={styles.badgeWrapper}>
@@ -197,22 +246,18 @@ const InGameBoardScreen: React.FC = () => {
             completedCells={markedCount}
             isCurrentUserReady={false}
           />
-          {roomCode ? (<Text style={styles.roomCodeText}>Room: {roomCode}</Text>) : null}
 
           {/* Header + Turn Info */}
           <View style={styles.headerRow}>
             <View style={styles.turnInfoRow}>
-              <Text style={styles.turnInfo}>{isMyTurn ? 'Your turn' : 'Waiting...'}</Text>
-              <View style={styles.compactTimer}>
-                <Icon name="clock" size={14} color={timeRemaining <= 5 ? '#dc2626' : '#8B4513'} />
-                <Text style={[styles.timerText, timeRemaining <= 5 && styles.dangerText]}>
-                  {timeRemaining}s
-                </Text>
-                <Text style={styles.progressText}>{markedCount} / 25</Text>
-              </View>
+              <TimerDisplay
+                timeLeft={timeRemaining}
+                formatTime={formatTime}
+                size="large"
+                muted={!isMyTurn}
+              />
             </View>
           </View>
-
           {/* Board Card */}
           <View style={styles.boardSection}>
             <View style={styles.boardCard}>
@@ -373,6 +418,7 @@ const styles = StyleSheet.create({
   legendDot: { width: 12, height: 12, borderRadius: 6 },
   legendText: { fontSize: 12, color: '#6b7280', marginRight: 8 },
   roomCodeText: { textAlign: 'center', color: '#9CA3AF', fontSize: 12, marginBottom: 6 },
+  leaveButton: { position: 'absolute', top: 0, right: 0, backgroundColor: '#ffffff', borderRadius: 16, padding: 8, borderWidth: 1, borderColor: 'rgba(255, 68, 68, 0.2)' },
 });
 
 export { InGameBoardScreen };

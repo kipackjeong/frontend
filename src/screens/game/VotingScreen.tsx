@@ -8,13 +8,12 @@ import {
     TouchableOpacity,
     Alert,
     Dimensions,
+    BackHandler,
 } from 'react-native';
-import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Icon from 'react-native-vector-icons/Feather';
 import { Card, CardContent } from '../../components/common';
-import { Button } from '../../components/common';
-import { Badge } from '../../components/common';
 import { VotingScreenNavigationProp, RootStackParamList } from '../../types/navigation';
 import { socketService } from '../../services/socket';
 import { useUser, useStore } from '../../store';
@@ -127,7 +126,7 @@ export function VotingScreen() {
             });
 
             setVotingSession(data.votingSession);
-            
+
             // Navigate to PreGameBoardScreen with animation + room data to prevent state loss
             logger.debug(`🚀 [NAVIGATION] Navigating to PreGameBoardScreen with:`, {
                 roomId: roomId,
@@ -135,7 +134,7 @@ export function VotingScreen() {
                 currentRoomStillExists: !!currentRoom,
                 passingRoomData: !!currentRoom
             });
-            
+
             navigation.navigate('PreGameBoardScreen', {
                 roomId: roomId,
                 winnerConsonant: data.selectedConsonant,
@@ -217,6 +216,37 @@ export function VotingScreen() {
         };
     }, [navigation]);
 
+    // Lock-down: only leave via explicit button; block hardware back
+    useFocusEffect(
+        React.useCallback(() => {
+            const onBack = () => {
+                Alert.alert('Locked In Room', 'Use the top-right leave button to exit this room.');
+                return true; // prevent default back behavior
+            };
+            BackHandler.addEventListener('hardwareBackPress', onBack);
+            return () => BackHandler.removeEventListener('hardwareBackPress', onBack);
+        }, [roomId])
+    );
+
+    const handleLeaveRoom = () => {
+        Alert.alert(
+            'Leave Room?',
+            'Are you sure you want to leave this room?',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Leave',
+                    style: 'destructive',
+                    onPress: () => {
+                        try { socketService.emit('room:leave', roomId); } catch { }
+                        try { useStore.getState().clearCurrentRoom?.(); } catch { }
+                        navigation.navigate('HomeScreen');
+                    }
+                }
+            ]
+        );
+    };
+
     // Countdown timer - always run if voting is active
     useEffect(() => {
         if (timeLeft > 0 && votingSession.status === 'active') {
@@ -288,6 +318,17 @@ export function VotingScreen() {
                     contentContainerStyle={styles.scrollContent}
                     showsVerticalScrollIndicator={false}
                 >
+                    {/* Top Leave Button */}
+                    <View style={{ position: 'relative' }}>
+                        <TouchableOpacity
+                            onPress={handleLeaveRoom}
+                            style={styles.leaveButton}
+                            activeOpacity={0.8}
+                        >
+                            <Icon name="x" size={20} color="#FF4444" />
+                        </TouchableOpacity>
+                    </View>
+
                     {/* Header with countdown timer */}
                     <View style={styles.headerSection}>
                         <View style={styles.titleContainer}>
@@ -821,9 +862,18 @@ const styles = StyleSheet.create({
     modernProgressBar: {
         height: '100%',
         backgroundColor: '#228b22',
-        borderRadius: 2,
     },
     modernProgressBarSelected: {
         backgroundColor: '#ffffff',
+    },
+    leaveButton: {
+        position: 'absolute',
+        top: 0,
+        right: 0,
+        backgroundColor: '#ffffff',
+        borderRadius: 16,
+        padding: 8,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 68, 68, 0.2)'
     },
 });

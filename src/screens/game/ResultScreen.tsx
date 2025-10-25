@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { SafeAreaView, View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import { UI_CONFIG } from '../../constants/config';
 import { useNavigation } from '@react-navigation/native';
 import { useStore } from '../../store';
 import { socketService } from '../../services/socket';
@@ -71,11 +72,13 @@ const ResultScreen: React.FC = () => {
             ? item.avatar
             : (item.username || 'U').charAt(0).toUpperCase();
           const rank = index + 1;
+          const lines = (lineCountsByPlayerId as Record<string, number>)[item.id] ?? 0;
           return (
             <View style={styles.row}>
               <View style={styles.rankPill}><Text style={styles.rankText}>{rank}</Text></View>
               <View style={styles.avatarCircle}><Text style={styles.avatarText}>{initial}</Text></View>
               <View style={styles.info}><Text style={styles.name}>{item.username}</Text></View>
+              <View style={styles.linesWrap}><Text style={styles.linesText}>{lines}</Text><Text style={styles.linesUnit}>lines</Text></View>
             </View>
           );
         }}
@@ -85,12 +88,12 @@ const ResultScreen: React.FC = () => {
               style={styles.leaveButton}
               activeOpacity={0.8}
               onPress={() => {
-                try { if (roomId) socketService.emit('room:leave', roomId); } catch {}
-                try { (clearCurrentRoom as any)?.(); } catch {}
+                try { if (roomId) socketService.emit('room:leave', roomId); } catch { }
+                try { (clearCurrentRoom as any)?.(); } catch { }
                 navigation.navigate('HomeScreen' as never);
               }}
             >
-              <Text style={styles.leaveButtonText}>Leave</Text>
+              <Text style={styles.leaveButtonText}>Back to Home</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -100,19 +103,22 @@ const ResultScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFFFF' },
-  headerWrap: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
-  title: { fontSize: 24, fontWeight: '800', color: '#1f2937' },
-  subtitle: { fontSize: 14, color: '#6b7280', marginTop: 4 },
-  listContent: { padding: 16, paddingTop: 8 },
-  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f3f4f6' },
-  rankPill: { width: 34, height: 24, borderRadius: 12, backgroundColor: '#eef2ff', alignItems: 'center', justifyContent: 'center', marginRight: 8, borderWidth: 1, borderColor: '#c7d2fe' },
-  rankText: { fontSize: 12, fontWeight: '800', color: '#3730a3' },
-  avatarCircle: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: '#f59e0b', marginRight: 12 },
-  avatarText: { fontSize: 18, fontWeight: '800', color: '#374151' },
-  info: { flex: 1 },
-  name: { fontSize: 16, fontWeight: '700', color: '#1f2937' },
-  footer: { paddingHorizontal: 16, paddingVertical: 12 },
+  container: { flex: 1, backgroundColor: UI_CONFIG.COLORS.BACKGROUND },
+  headerWrap: { paddingHorizontal: 16, paddingTop: 20, paddingBottom: 8 },
+  title: { fontSize: UI_CONFIG.TYPOGRAPHY.h2.fontSize, fontWeight: UI_CONFIG.TYPOGRAPHY.h2.fontWeight, color: UI_CONFIG.COLORS.TEXT_PRIMARY },
+  subtitle: { fontSize: UI_CONFIG.TYPOGRAPHY.small.fontSize, color: UI_CONFIG.COLORS.TEXT_SECONDARY, marginTop: 4 },
+  listContent: { padding: 16, paddingTop: 8, backgroundColor: UI_CONFIG.COLORS.BACKGROUND },
+  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: UI_CONFIG.COLORS.BORDER },
+  rankPill: { width: 34, height: 24, borderRadius: 12, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', marginRight: 10, borderWidth: 1, borderColor: UI_CONFIG.COLORS.BORDER },
+  rankText: { fontSize: 12, fontWeight: '800', color: UI_CONFIG.COLORS.TEXT_PRIMARY },
+  avatarCircle: { width: 44, height: 44, borderRadius: 22, backgroundColor: UI_CONFIG.COLORS.SURFACE, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: UI_CONFIG.COLORS.BORDER, marginRight: 12 },
+  avatarText: { fontSize: 16, fontWeight: '800', color: UI_CONFIG.COLORS.TEXT_PRIMARY },
+  info: { flex: 1, justifyContent: 'center' },
+  name: { fontSize: UI_CONFIG.TYPOGRAPHY.body.fontSize, fontWeight: '700', color: UI_CONFIG.COLORS.TEXT_PRIMARY },
+  linesWrap: { flexDirection: 'row', alignItems: 'flex-end' },
+  linesText: { fontSize: 16, fontWeight: '800', color: UI_CONFIG.COLORS.TEXT_PRIMARY },
+  linesUnit: { fontSize: 12, color: UI_CONFIG.COLORS.TEXT_SECONDARY, marginLeft: 4 },
+  footer: { paddingHorizontal: 16, paddingVertical: 16 },
   leaveButton: { backgroundColor: '#8b4513', borderRadius: 12, alignItems: 'center', justifyContent: 'center', paddingVertical: 14 },
   leaveButtonText: { color: '#ffffff', fontSize: 16, fontWeight: '700' },
 });

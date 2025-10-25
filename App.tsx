@@ -95,7 +95,8 @@ export default function App() {
       <Stack.Navigator
         screenOptions={{
           headerShown: false,
-          cardStyle: { backgroundColor: '#FFFFFF' }
+          cardStyle: { backgroundColor: '#FFFFFF' },
+          gestureEnabled: false
         }}
       >
         {isAuthenticated ? (

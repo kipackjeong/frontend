@@ -9,11 +9,12 @@ import {
     StyleSheet,
     Dimensions,
     TouchableOpacity,
+    BackHandler,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 // @ts-ignore - react-native-vector-icons types not available
 import Icon from 'react-native-vector-icons/Feather';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 
 // Types and Store
 import { RootStackParamList } from '../../types/navigation';
@@ -145,6 +146,39 @@ export function PreGameBoardScreen() {
         };
     }, [navigation]);
 
+    // Lock-down: only leave via explicit button; block hardware back
+    useFocusEffect(
+        React.useCallback(() => {
+            const onBack = () => {
+                Alert.alert('Locked In Room', 'Use the top-right leave button to exit this room.');
+                return true; // prevent default back behavior
+            };
+            BackHandler.addEventListener('hardwareBackPress', onBack);
+            return () => BackHandler.removeEventListener('hardwareBackPress', onBack);
+        }, [roomId])
+    );
+
+    const handleLeaveRoom = () => {
+        if (!roomId) return;
+        Alert.alert(
+            'Leave Room?',
+            'Are you sure you want to leave this room?',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Leave',
+                    style: 'destructive',
+                    onPress: () => {
+                        try { socketService.leavePreGame(roomId); } catch { }
+                        try { socketService.emit('room:leave', roomId); } catch { }
+                        try { useStore.getState().clearCurrentRoom?.(); } catch { }
+                        navigation.navigate('HomeScreen' as never);
+                    }
+                }
+            ]
+        );
+    };
+
     // Entrance animation effect
     useEffect(() => {
         // Trigger entrance animations with staggered timing
@@ -173,12 +207,9 @@ export function PreGameBoardScreen() {
     }, [completedCells]);
 
     const gameStatus = useMemo(() => {
-        // Development override: Allow testing confirm button with minimal input
-        const devOverride = __DEV__ && completedCells >= 3; // Only need 3 cells in dev mode
-
-        if ((allCellsValidAndFilled || devOverride) && !hasDuplicates && isReadyConfirmed) {
+        if (allCellsValidAndFilled && !hasDuplicates && isReadyConfirmed) {
             return 'ready';
-        } else if ((allCellsValidAndFilled || devOverride) && !hasDuplicates) {
+        } else if (allCellsValidAndFilled && !hasDuplicates) {
             return 'complete-pending-confirmation';
         } else if (completedCells > 0) {
             return 'in-progress';
@@ -204,15 +235,23 @@ export function PreGameBoardScreen() {
             allCellsValidAndFilled,
             hasDuplicates,
             completedCells,
-            devOverride: __DEV__ && completedCells >= 3
         });
+
+        if (!allCellsValidAndFilled || hasDuplicates) {
+            Alert.alert(
+                '입력 확인 필요',
+                '모든 칸에 중복 없이 올바른 단어를 입력해 주세요.',
+                [{ text: '확인', style: 'default' }]
+            );
+            return;
+        }
 
         // Complete the bingoBoard with current state
         const finalBoard = bingoBoard.map(row =>
             row.map(cell => ({
                 ...cell,
                 word: cell.word || cell.previousWord || '',
-                isValid: cell.isValid || !!cell.previousWord, // Accept previous word as valid
+                isValid: cell.isValid,
                 isValidating: false,
             }))
         );
@@ -229,11 +268,10 @@ export function PreGameBoardScreen() {
 
         // Log what the state SHOULD be after the update
         console.log('🔍 [CONFIRM_READY] Expected state AFTER changes:', {
-            isReadyConfirmed: true, // This is what we just set
+            isReadyConfirmed: true,
             allCellsValidAndFilled,
             hasDuplicates,
             completedCells,
-            devOverride: __DEV__ && completedCells >= 3,
             shouldTriggerUseEffect: true
         });
 
@@ -352,6 +390,17 @@ export function PreGameBoardScreen() {
                             },
                         ]}
                     >
+                        {/* Top Leave Button */}
+                        <View style={{ position: 'relative' }}>
+                            <TouchableOpacity
+                                onPress={handleLeaveRoom}
+                                style={styles.leaveButton}
+                                activeOpacity={0.8}
+                            >
+                                <Icon name="x" size={20} color="#FF4444" />
+                            </TouchableOpacity>
+                        </View>
+
                         {/* Modern Consonant Badge - Top Center */}
                         <View style={styles.modernConsonantContainer}>
                             <View style={styles.badgeWrapper}>
@@ -375,8 +424,8 @@ export function PreGameBoardScreen() {
                         <TimerDisplay
                             timeLeft={timeLeft}
                             formatTime={formatTime}
-                            validCells={validCells}
-                            totalCells={totalCells}
+                            size="large"
+
                         />
 
                         {/* Bingo Grid - Using Subcomponent */}
@@ -1064,5 +1113,15 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontSize: 16,
         fontWeight: '700',
+    },
+    leaveButton: {
+        position: 'absolute',
+        top: 0,
+        right: 0,
+        backgroundColor: '#ffffff',
+        borderRadius: 16,
+        padding: 8,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 68, 68, 0.2)'
     },
 });

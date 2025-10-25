@@ -23,12 +23,13 @@ const PrimaryActions: React.FC<PrimaryActionsProps> = ({ onQuickPlay, onCreateRo
   const CREATE: GradientTuple = loadingCreate ? ['#9ca3af', '#6b7280'] : ['#eab308', '#d97706'];
   return (
     <View style={styles.container}>
-      <TouchableOpacity activeOpacity={0.9} onPress={onQuickPlay} style={styles.btnShadow}>
+      {/* TODO: feature 빠른시작 구현 */}
+      {/* <TouchableOpacity activeOpacity={0.9} onPress={onQuickPlay} style={styles.btnShadow}>
         <ButtonGradient colors={QUICK}>
           <Icon name="zap" size={18} color="#fff" />
           <Text style={styles.btnText}>빠른 시작</Text>
         </ButtonGradient>
-      </TouchableOpacity>
+      </TouchableOpacity> */}
 
       <View style={styles.row}>
         <TouchableOpacity activeOpacity={0.9} onPress={onCreateRoom} style={[styles.btnShadow, styles.half]}>

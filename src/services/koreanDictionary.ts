@@ -59,33 +59,42 @@ export class KoreanDictionaryService {
   /**
    * Checks if a word matches the given consonant combination using hangul-js
    * @param word Korean word to check
-   * @param consonantPair Consonant pair like 'ㄱㅅ'
-   * @returns true if word matches the consonant pattern
+   * @param consonantOrPair Single consonant like 'ㄱ' or a pair like 'ㄱㅅ'
+   * @returns true if word matches the consonant rule
    */
-  public matchesConsonantPattern(word: string, consonantPair: string): boolean {
-    if (!word || word.length === 0) return false;
+  public matchesConsonantPattern(word: string, consonantOrPair: string): boolean {
+    if (!word || word.trim().length === 0) return false;
 
     try {
-      // Extract 초성 (initial consonants) from the entire word using hangul-js
-      const initialConsonants = Hangul.disassemble(word, true)
-        .map((syllableArray: string[]) => {
-          // Each syllableArray represents one Korean syllable [초성, 중성, 종성]
-          // First element is 초성 (initial consonant)
-          return syllableArray.length > 0 && Hangul.isConsonant(syllableArray[0])
-            ? syllableArray[0]
-            : null;
-        })
-        .filter((consonant: string | null) => consonant !== null);
+      // Normalize inputs
+      const normalizedWord = word.trim();
+      const normalized = (consonantOrPair || '').replace(/\s+/g, '');
+      if (normalized.length === 0) return false;
 
-      // Extract individual consonants from pair (e.g., 'ㅇㅅ' -> ['ㅇ', 'ㅅ'])
-      const targetConsonants = consonantPair.split('');
+      // Helper: get the first syllable's initial consonant (초성) from the word
+      const grouped = Hangul.disassemble(normalizedWord, true) as string[][];
+      const firstSyllable = Array.isArray(grouped) && grouped.length > 0 ? grouped[0] : null;
+      const firstInitial = firstSyllable && firstSyllable.length > 0 && Hangul.isConsonant(firstSyllable[0])
+        ? firstSyllable[0]
+        : null;
 
-      if (targetConsonants.length !== 2) return false;
+      // Normalize double initial consonants to their base forms for matching
+      const baseMap: Record<string, string> = { 'ㄲ': 'ㄱ', 'ㄸ': 'ㄷ', 'ㅃ': 'ㅂ', 'ㅆ': 'ㅅ', 'ㅉ': 'ㅈ' };
+      const normalizedFirst = firstInitial ? (baseMap[firstInitial] || firstInitial) : null;
 
-      // Check if word contains at least one of the target consonants
-      return initialConsonants.some((consonant: string) =>
-        targetConsonants.includes(consonant)
-      );
+      if (!normalizedFirst) return false; // Not a valid Korean syllable start
+
+      // Single consonant: must START with the selected consonant
+      if (normalized.length === 1) {
+        const target = baseMap[normalized] || normalized;
+        return normalizedFirst === target;
+      }
+
+      // Pair: must START with one of the two consonants
+      const targets = normalized.split('').filter((c) => Hangul.isConsonant(c));
+      if (targets.length < 1) return false;
+      const normalizedTargets = targets.map((c) => baseMap[c] || c);
+      return normalizedTargets.includes(normalizedFirst);
 
     } catch (error) {
       console.warn(`Failed to match consonant pattern for word: ${word}`, error);
@@ -239,7 +248,9 @@ export class KoreanDictionaryService {
     if (!result.matchesConsonant) {
       return {
         ...result,
-        error: `Word must contain consonants from '${consonantPair}'`
+        error: consonantPair && consonantPair.trim().length === 1
+          ? `Word must start with '${consonantPair}'`
+          : `Word must start with one of '${consonantPair}'`
       };
     }
 
