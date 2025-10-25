@@ -114,16 +114,21 @@ export function PreGameBoardScreen() {
         if (timeLeft === 0 && roomId) {
             (async () => {
                 try {
-                    // B) Force a final progress broadcast with 25 cells
                     console.log('⏰ [PREGAME] Timer expired. Forcing final progress update (25/25)...');
                     try { sendBoardProgressUpdate(25, true); } catch { }
 
-                    // A) Ensure final snapshot is sent before requesting game start
                     console.log('⏰ [PREGAME] Timer expired. Sending final snapshot before game start...');
                     const readyRes = await sendCompletionStatus(true);
                     console.log('📦 [PREGAME] Final snapshot ack:', readyRes);
 
-                    // Proceed to request game start with confirmed order (if any)
+                    try {
+                        const uid = useStore.getState().user?.id;
+                        if (uid) {
+                            const grid: string[][] = (bingoBoard || []).map(row => row.map(cell => (cell.word || cell.previousWord || '')));
+                            useStore.getState().setInGameBoards?.({ [uid]: grid });
+                        }
+                    } catch {}
+
                     const order = useStore.getState().getConfirmedOrder?.() || [];
                     console.log('🚀 [PREGAME] Requesting game start with order:', order);
                     socketService.requestGameStart(roomId, { reason: 'timer_expired', confirmedOrder: order });
@@ -297,6 +302,14 @@ export function PreGameBoardScreen() {
         } catch (error) {
             console.error('❌ [CONFIRM_READY] sendBoardProgressUpdate error:', error);
         }
+
+        try {
+            const uid = useStore.getState().user?.id;
+            if (uid) {
+                const grid: string[][] = finalBoard.map(row => row.map(cell => (cell.word || cell.previousWord || '')));
+                useStore.getState().setInGameBoards?.({ [uid]: grid });
+            }
+        } catch {}
 
         // DEBUG: Check what the PlayerAvatarRow will receive
         console.log('🎨 [AVATAR_DEBUG] PlayerAvatarRow will receive:', {

@@ -18,6 +18,7 @@ class SocketService {
   private reconnectAttempts = 0;
   private maxReconnectAttempts = SOCKET_CONFIG.MAX_RECONNECT_ATTEMPTS;
   private serverUrl: string;
+  private prevPlayerCountByRoom: Record<string, number> = {};
 
   constructor(serverUrl: string = API_CONFIG.SOCKET_URL) {
     this.serverUrl = serverUrl;
@@ -239,7 +240,7 @@ class SocketService {
     });
 
     // Centralized handler to normalize room payloads and enforce <2 players rule during active phases
-    const applyRoomUpdate = (raw: any) => {
+    const applyRoomUpdate = (raw: any, cause?: string) => {
       try {
         const s = storeGetter();
         const userId = (s as any).user?.id;
@@ -250,8 +251,11 @@ class SocketService {
 
         // Enforce <2 players rule only if pregame/ingame active
         const playerCount = Array.isArray(current.players) ? current.players.length : 0;
-        const isPreGame = !!(s as any).pregameRoomId || ((s as any).room?.status === 'voting' || (s as any).room?.status === 'creating');
-        const isInGame = ((s as any).room?.status === 'playing') || ((s as any).currentRoom?.status === 'playing');
+        const status = String((current as any)?.status || '');
+        const isPreGame = !!(s as any).pregameRoomId || status === 'voting' || status === 'creating';
+        const isInGame = status === 'playing';
+        const isWaiting = status === 'waiting';
+        const prevCount = this.prevPlayerCountByRoom[current.id] ?? playerCount;
         if (playerCount < 2 && (isPreGame || isInGame)) {
           safeStoreUpdate(() => {
             try { (s as any).resetTimer?.(); } catch {}
@@ -260,17 +264,31 @@ class SocketService {
           }, 'Failed to reset state on <2 players');
           // Navigate remaining user back to lobby for this room
           try { navigate('RoomLobby', { roomId: current.id, roomCode: current.code } as any); } catch {}
+        } else if (playerCount < 2 && isWaiting) {
+          // In Lobby with only one player left: auto-leave the room and return Home
+          // Only trigger if we transitioned from >=2 to <2 players
+          if (prevCount >= 2) {
+            try { this.emit('room:leave', current.id); } catch {}
+            safeStoreUpdate(() => {
+              try { (s as any).resetTimer?.(); } catch {}
+              try { (s as any).clearPregame?.(); } catch {}
+              try { (s as any).clearCurrentRoom?.(); } catch {}
+            }, 'Failed to clear state on waiting <2 players');
+            try { navigate('HomeScreen'); } catch {}
+          }
         }
+        // Update previous count snapshot for this room
+        this.prevPlayerCountByRoom[current.id] = playerCount;
       } catch (e) {
         console.warn('⚠️ Failed to apply room update:', e);
       }
     };
 
     // Enhanced room lifecycle events
-    this.socket.on('room:player_joined', (data: any) => applyRoomUpdate(data));
-    this.socket.on('room:player_left', (data: any) => applyRoomUpdate(data));
-    this.socket.on('room:player_ready_changed', (data: any) => applyRoomUpdate(data));
-    this.socket.on('room:updated', (data: any) => applyRoomUpdate(data));
+    this.socket.on('room:player_joined', (data: any) => applyRoomUpdate(data, 'player_joined'));
+    this.socket.on('room:player_left', (data: any) => applyRoomUpdate(data, 'player_left'));
+    this.socket.on('room:player_ready_changed', (data: any) => applyRoomUpdate(data, 'ready_changed'));
+    this.socket.on('room:updated', (data: any) => applyRoomUpdate(data, 'updated'));
     this.socket.on('room:closed', (data: any) => {
       const s = storeGetter();
       console.log('🏠 Room closed (central handler):', data);
