@@ -127,7 +127,7 @@ export function PreGameBoardScreen() {
                             const grid: string[][] = (bingoBoard || []).map(row => row.map(cell => (cell.word || cell.previousWord || '')));
                             useStore.getState().setInGameBoards?.({ [uid]: grid });
                         }
-                    } catch {}
+                    } catch { }
 
                     const order = useStore.getState().getConfirmedOrder?.() || [];
                     console.log('🚀 [PREGAME] Requesting game start with order:', order);
@@ -309,7 +309,7 @@ export function PreGameBoardScreen() {
                 const grid: string[][] = finalBoard.map(row => row.map(cell => (cell.word || cell.previousWord || '')));
                 useStore.getState().setInGameBoards?.({ [uid]: grid });
             }
-        } catch {}
+        } catch { }
 
         // DEBUG: Check what the PlayerAvatarRow will receive
         console.log('🎨 [AVATAR_DEBUG] PlayerAvatarRow will receive:', {
@@ -382,9 +382,20 @@ export function PreGameBoardScreen() {
     return (
         <SafeAreaView style={styles.container}>
             <LinearGradient
-                colors={['##FFFFFF', '#f5f1eb']}
+                colors={['#FFFFFF', '#f5f1eb']}
                 style={styles.backgroundGradient}
             >
+                {/* Absolute overlay close button */}
+                <View pointerEvents="box-none" style={styles.topOverlay}>
+                    <TouchableOpacity
+                        onPress={handleLeaveRoom}
+                        style={styles.leaveButton}
+                        activeOpacity={0.8}
+                        hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
+                    >
+                        <Icon name="x" size={20} color="#FF4444" />
+                    </TouchableOpacity>
+                </View>
                 <ScrollView
                     style={styles.scrollView}
                     contentContainerStyle={styles.scrollContent}
@@ -403,16 +414,7 @@ export function PreGameBoardScreen() {
                             },
                         ]}
                     >
-                        {/* Top Leave Button */}
-                        <View style={{ position: 'relative' }}>
-                            <TouchableOpacity
-                                onPress={handleLeaveRoom}
-                                style={styles.leaveButton}
-                                activeOpacity={0.8}
-                            >
-                                <Icon name="x" size={20} color="#FF4444" />
-                            </TouchableOpacity>
-                        </View>
+                        
 
                         {/* Modern Consonant Badge - Top Center */}
                         <View style={styles.modernConsonantContainer}>
@@ -1137,4 +1139,5 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: 'rgba(255, 68, 68, 0.2)'
     },
+    topOverlay: { position: 'absolute', top: 8, right: 8, zIndex: 1000, elevation: 10 },
 });

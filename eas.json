@@ -15,6 +15,18 @@
         "EXPO_PUBLIC_SOCKET_URL": "https://chosung-bingo-backend.salmonwave-d39f32dc.westus2.azurecontainerapps.io"
       }
     },
+    "development": {
+      "distribution": "internal",
+      "developmentClient": true,
+      "autoIncrement": true,
+      "ios": {
+        "simulator": true
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://chosung-bingo-backend.salmonwave-d39f32dc.westus2.azurecontainerapps.io",
+        "EXPO_PUBLIC_SOCKET_URL": "https://chosung-bingo-backend.salmonwave-d39f32dc.westus2.azurecontainerapps.io"
+      }
+    },
     "production": {
       "distribution": "store",
       "autoIncrement": true,

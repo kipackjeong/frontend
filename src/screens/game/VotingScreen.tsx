@@ -310,24 +310,27 @@ export function VotingScreen() {
     return (
         <SafeAreaView style={styles.container}>
             <LinearGradient
-                colors={['##FFFFFF', '#f5f1eb']}
+                colors={['#FFFFFF', '#f5f1eb']}
                 style={styles.backgroundGradient}
             >
+                {/* Absolute overlay close button */}
+                <View pointerEvents="box-none" style={styles.topOverlay}>
+                    <TouchableOpacity
+                        onPress={handleLeaveRoom}
+                        style={styles.leaveButton}
+                        activeOpacity={0.8}
+                        hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
+                    >
+                        <Icon name="x" size={20} color="#FF4444" />
+                    </TouchableOpacity>
+                </View>
+
                 <ScrollView
                     style={styles.scrollView}
                     contentContainerStyle={styles.scrollContent}
                     showsVerticalScrollIndicator={false}
                 >
-                    {/* Top Leave Button */}
-                    <View style={{ position: 'relative' }}>
-                        <TouchableOpacity
-                            onPress={handleLeaveRoom}
-                            style={styles.leaveButton}
-                            activeOpacity={0.8}
-                        >
-                            <Icon name="x" size={20} color="#FF4444" />
-                        </TouchableOpacity>
-                    </View>
+                    
 
                     {/* Header with countdown timer */}
                     <View style={styles.headerSection}>

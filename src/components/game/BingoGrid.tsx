@@ -10,6 +10,8 @@ import Icon from 'react-native-vector-icons/Feather';
 import { CELL_SIZE, GRID_GAP, BORDER_RADIUS, BORDER_COLOR, CARD_BORDER_COLOR, CARD_BORDER_WIDTH } from './bingoTheme';
 import type { BingoCell } from '../../hooks/useBingoBoard';
 const RNIcon: any = Icon;
+import { SKIA_CONFIG } from '../../constants/config';
+import BingoBoardSkiaOverlay from '../skia/BingoBoardSkiaOverlay';
 
 interface BingoGridProps {
   bingoBoard: BingoCell[][];
@@ -33,6 +35,7 @@ const BingoGrid = ({
   const inputRefs = useRef<TextInput[][]>([]);
   const rows = bingoBoard.length;
   const cols = bingoBoard[0]?.length ?? 5;
+  const gridSizePx = cols * CELL_SIZE + (cols - 1) * GRID_GAP;
 
   const focusCell = (row: number, col: number) => {
     const ref = inputRefs.current[row]?.[col];
@@ -58,7 +61,8 @@ const BingoGrid = ({
     <View style={styles.boardSection}>
       <View style={styles.boardCard}>
         <View style={styles.boardContent}>
-          <View style={styles.bingoGrid}>
+          <View style={StyleSheet.flatten([styles.gridWrapper, { width: gridSizePx, height: gridSizePx }])}>
+            <View style={styles.bingoGrid}>
             {bingoBoard.map((row: BingoCell[], rowIndex: number) => (
               <View key={rowIndex} style={styles.bingoRow}>
                 {row.map((cell: BingoCell, colIndex: number) => (
@@ -124,6 +128,12 @@ const BingoGrid = ({
                 ))}
               </View>
             ))}
+            </View>
+            {SKIA_CONFIG.USE_SKIA_BOARD && (
+              <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                <BingoBoardSkiaOverlay size={gridSizePx} gridSize={cols} gap={GRID_GAP} theme="physical" />
+              </View>
+            )}
           </View>
         </View>
       </View>
@@ -149,6 +159,7 @@ const styles = StyleSheet.create({
   boardContent: {
     padding: 16,
   },
+  gridWrapper: { position: 'relative', alignSelf: 'center' },
   bingoGrid: {
     flexDirection: 'column',
     gap: GRID_GAP,

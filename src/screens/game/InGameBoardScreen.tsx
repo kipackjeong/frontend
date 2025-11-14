@@ -7,6 +7,8 @@ import { BingoBoard, BingoCell as StoreBingoCell } from '../../types';
 import { useStore } from '../../store';
 import { socketService } from '../../services/socket';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { SKIA_CONFIG } from '../../constants';
+import BingoBoardSkiaOverlay from '../../components/skia/BingoBoardSkiaOverlay';
 
 const CELL_SIZE = 60;
 const GRID_SIZE = 5;
@@ -169,8 +171,8 @@ const InGameBoardScreen: React.FC = () => {
           text: 'Leave',
           style: 'destructive',
           onPress: () => {
-            try { socketService.emit('room:leave', activeRoomId); } catch {}
-            try { useStore.getState().clearCurrentRoom?.(); } catch {}
+            try { socketService.emit('room:leave', activeRoomId); } catch { }
+            try { useStore.getState().clearCurrentRoom?.(); } catch { }
             navigation.navigate('HomeScreen' as never);
           }
         }
@@ -218,13 +220,19 @@ const InGameBoardScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.container}>
       <LinearGradient colors={['#FFFFFF', '#f5f1eb']} style={styles.backgroundGradient}>
+        {/* Absolute overlay close button */}
+        <View pointerEvents="box-none" style={styles.topOverlay}>
+          <TouchableOpacity
+            onPress={handleLeaveRoom}
+            style={styles.leaveButton}
+            activeOpacity={0.8}
+            hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
+          >
+            <Icon name="x" size={20} color="#FF4444" />
+          </TouchableOpacity>
+        </View>
+
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          {/* Top Leave Button */}
-          <View style={{ position: 'relative' }}>
-            <TouchableOpacity onPress={handleLeaveRoom} style={styles.leaveButton} activeOpacity={0.8}>
-              <Icon name="x" size={20} color="#FF4444" />
-            </TouchableOpacity>
-          </View>
 
           {/* Consonant Badge */}
           <View style={styles.modernConsonantContainer}>
@@ -263,6 +271,11 @@ const InGameBoardScreen: React.FC = () => {
             <View style={styles.boardCard}>
               <View style={styles.boardContent}>
                 <View style={StyleSheet.flatten([styles.gridWrapper, { width: gridSizePx, height: gridSizePx }])}>
+                  {SKIA_CONFIG.USE_SKIA_BOARD && (
+                    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                      <BingoBoardSkiaOverlay size={gridSizePx} gridSize={GRID_SIZE} gap={GRID_GAP} theme="physical" />
+                    </View>
+                  )}
                   <View style={styles.grid}>
                     {myBoard.cells.map((row, rIdx) => (
                       <View key={`r-${rIdx}`} style={styles.row}>
@@ -419,6 +432,7 @@ const styles = StyleSheet.create({
   legendText: { fontSize: 12, color: '#6b7280', marginRight: 8 },
   roomCodeText: { textAlign: 'center', color: '#9CA3AF', fontSize: 12, marginBottom: 6 },
   leaveButton: { position: 'absolute', top: 0, right: 0, backgroundColor: '#ffffff', borderRadius: 16, padding: 8, borderWidth: 1, borderColor: 'rgba(255, 68, 68, 0.2)' },
+  topOverlay: { position: 'absolute', top: 8, right: 8, zIndex: 1000, elevation: 10 },
 });
 
 export { InGameBoardScreen };

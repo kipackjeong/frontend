@@ -148,3 +148,14 @@ export const KOREAN_DICT_CONFIG = {
   API_KEY: '248B977427652B517DEB6EE0B6549E7C',
   DEVELOPMENT_MODE: false,
 } as const;
+
+const USE_SKIA_BOARD = (() => {
+  const v = (process.env as any)?.EXPO_PUBLIC_USE_SKIA_BOARD;
+  if (v === 'true' || v === '1') return true;
+  if (v === 'false' || v === '0') return false;
+  return __DEV__;
+})()
+
+export const SKIA_CONFIG = {
+  USE_SKIA_BOARD: USE_SKIA_BOARD,
+} as const;
