@@ -600,6 +600,25 @@ const HomeScreen = () => {
                                     <Icon name="bar-chart-2" size={16} color="#8b4513" />
                                     <Text style={styles.devButtonText}>Result Screen (2 players)</Text>
                                 </TouchableOpacity>
+
+                                {/* Gamification: Quick nav */}
+                                <TouchableOpacity
+                                    style={styles.devButton}
+                                    onPress={() => navigation.navigate('LeaderboardsScreen' as never)}
+                                    activeOpacity={0.7}
+                                >
+                                    <Icon name="award" size={16} color="#8b4513" />
+                                    <Text style={styles.devButtonText}>Leaderboards</Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={styles.devButton}
+                                    onPress={() => navigation.navigate('AchievementsScreen' as never)}
+                                    activeOpacity={0.7}
+                                >
+                                    <Icon name="star" size={16} color="#8b4513" />
+                                    <Text style={styles.devButtonText}>Achievements</Text>
+                                </TouchableOpacity>
                             </View>
 
                             <Text style={styles.developmentNote}>

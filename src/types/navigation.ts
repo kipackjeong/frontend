@@ -11,6 +11,8 @@ export type RootStackParamList = {
   Login: undefined;
   Signup: undefined;
   HomeScreen: undefined;
+  LeaderboardsScreen: undefined;
+  AchievementsScreen: undefined;
   RoomLobby: {
     roomId: string;
     roomCode?: string;
@@ -33,6 +35,8 @@ export type RootStackParamList = {
 export type LoginScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Login'>;
 export type SignupScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Signup'>;
 export type HomeScreenNavigationProp = StackNavigationProp<RootStackParamList, 'HomeScreen'>;
+export type LeaderboardsScreenNavigationProp = StackNavigationProp<RootStackParamList, 'LeaderboardsScreen'>;
+export type AchievementsScreenNavigationProp = StackNavigationProp<RootStackParamList, 'AchievementsScreen'>;
 export type RoomLobbyScreenNavigationProp = StackNavigationProp<RootStackParamList, 'RoomLobby'>;
 export type VotingScreenNavigationProp = StackNavigationProp<RootStackParamList, 'VotingScreen'>;
 export type PreGameBoardScreenNavigationProp = StackNavigationProp<RootStackParamList, 'PreGameBoardScreen'>;
@@ -44,6 +48,8 @@ export type ResultScreenNavigationProp = StackNavigationProp<RootStackParamList,
 export type LoginScreenRouteProp = RouteProp<RootStackParamList, 'Login'>;
 export type SignupScreenRouteProp = RouteProp<RootStackParamList, 'Signup'>;
 export type HomeScreenRouteProp = RouteProp<RootStackParamList, 'HomeScreen'>;
+export type LeaderboardsScreenRouteProp = RouteProp<RootStackParamList, 'LeaderboardsScreen'>;
+export type AchievementsScreenRouteProp = RouteProp<RootStackParamList, 'AchievementsScreen'>;
 export type RoomLobbyScreenRouteProp = RouteProp<RootStackParamList, 'RoomLobby'>;
 export type VotingScreenRouteProp = RouteProp<RootStackParamList, 'VotingScreen'>;
 export type PreGameBoardScreenRouteProp = RouteProp<RootStackParamList, 'PreGameBoardScreen'>;

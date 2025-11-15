@@ -12,7 +12,8 @@
       },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://chosung-bingo-backend.salmonwave-d39f32dc.westus2.azurecontainerapps.io",
-        "EXPO_PUBLIC_SOCKET_URL": "https://chosung-bingo-backend.salmonwave-d39f32dc.westus2.azurecontainerapps.io"
+        "EXPO_PUBLIC_SOCKET_URL": "https://chosung-bingo-backend.salmonwave-d39f32dc.westus2.azurecontainerapps.io",
+        "EXPO_PUBLIC_LOTTIE_CONFETTI_URL": "https://lottie.host/90f35c58-3b3b-4acd-9485-a7a9f2bbae5b/v2LVSAeskJ.lottie"
       }
     },
     "development": {
@@ -38,8 +39,7 @@
         "EXPO_PUBLIC_SOCKET_URL": "https://chosung-bingo-backend.salmonwave-d39f32dc.westus2.azurecontainerapps.io"
       }
     }
-  }
-  ,
+  },
   "submit": {
     "production": {
       "ios": {}

@@ -136,6 +136,48 @@ Run `npm install` to install all required packages from updated package.json
 4. **Add unit tests** for components and store slices
 5. **UI/UX polish** with animations and responsive design
 
+## 🏆 Gamification (PlayFab)
+
+This app integrates PlayFab as a backend for gamification (leaderboards, player stats, achievements). UI is implemented with custom React Native screens for full cross‑platform control.
+
+### Setup
+
+1. Create a PlayFab Title and note your `TitleId`.
+2. Expose it to the app via Expo env:
+
+```
+EXPO_PUBLIC_PLAYFAB_TITLE_ID=<YOUR_TITLE_ID>
+```
+
+3. On login, the app automatically attempts a PlayFab login using the Supabase `user.id` as a `CustomId`.
+
+### Files
+
+- Service: `src/services/playfab.ts` (client‑side reads; use backend for sensitive writes)
+- Config: `PLAYFAB_CONFIG` in `src/constants/config.ts`
+- Screens:
+  - `src/screens/gamification/LeaderboardsScreen.tsx`
+  - `src/screens/gamification/AchievementsScreen.tsx`
+- Navigation: Registered in `App.tsx` and types in `src/types/navigation.ts`
+
+### Navigation
+
+You can navigate programmatically:
+
+```ts
+import { navigate } from './src/services/navigation';
+
+navigate('LeaderboardsScreen');
+navigate('AchievementsScreen');
+```
+
+Or add buttons in `HomeScreen` to open these screens.
+
+### Notes
+
+- For production, perform stat updates and achievement unlocks via your backend using PlayFab Server API or CloudScript for security.
+- Client screens perform safe reads (leaderboard, player statistics).
+
 ## 📚 Tech Stack
 
 - **React Native** + **Expo** - Cross-platform mobile framework

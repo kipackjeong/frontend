@@ -129,6 +129,20 @@ export const UI_CONFIG = {
   },
 } as const;
 
+// PlayFab configuration
+const PLAYFAB_TITLE_ID = (process.env as any)?.EXPO_PUBLIC_PLAYFAB_TITLE_ID || '';
+const PLAYFAB_BASE = PLAYFAB_TITLE_ID ? `https://${PLAYFAB_TITLE_ID}.playfabapi.com` : '';
+
+export const PLAYFAB_CONFIG = {
+  TITLE_ID: PLAYFAB_TITLE_ID,
+  BASE_URL: PLAYFAB_BASE,
+} as const;
+
+// Lottie configuration
+export const LOTTIE_CONFIG = {
+  CONFETTI_URL: (process.env as any)?.EXPO_PUBLIC_LOTTIE_CONFETTI_URL || '',
+} as const;
+
 export const DEV_CONFIG = {
   ENABLE_MOCK_DATA: __DEV__,
   ENABLE_DEBUG_LOGS: __DEV__,

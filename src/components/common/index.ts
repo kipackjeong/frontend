@@ -9,4 +9,6 @@ export { default as Text } from './Text';
 export { default as Badge } from './Badge';
 
 export { default as AnimatedAvatar } from './AnimatedAvatar';
+export { default as GradientActionButton } from './GradientActionButton';
+export type { GradientTuple } from './GradientActionButton';
 export { PlayerAvatar } from './PlayerAvatar';

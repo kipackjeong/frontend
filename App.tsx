@@ -7,7 +7,9 @@ import { LoginScreen, SignupScreen } from './src/screens/auth';
 import { HomeScreen, RoomLobby } from './src/screens/lobby';
 import { VotingScreen, PreGameBoardScreen, InGameBoardScreen, ResultScreen } from './src/screens/game';
 import { navigationRef } from './src/services/navigation';
-import { socketService } from './src/services';
+import LeaderboardsScreen from './src/screens/gamification/LeaderboardsScreen';
+import AchievementsScreen from './src/screens/gamification/AchievementsScreen';
+import { socketService, playfabService } from './src/services';
 import { apiService } from './src/services/api';
 import type { RootStackParamList } from './src/types/navigation';
 
@@ -88,6 +90,27 @@ export default function App() {
     };
   }, []);
 
+  // Handle PlayFab login based on auth state
+  useEffect(() => {
+    const loginPlayFab = async () => {
+      if (isAuthenticated && user) {
+        if (!playfabService.isConfigured()) {
+          return; // Skip if no TitleId configured
+        }
+        if (playfabService.hasSession()) {
+          return; // Already logged in
+        }
+        try {
+          await playfabService.loginWithCustomId(user.id);
+        } catch (e) {
+          // Silently ignore; UI screens will surface state
+        }
+      }
+    };
+
+    loginPlayFab();
+  }, [isAuthenticated, user?.id]);
+
 
 
   return (
@@ -106,6 +129,16 @@ export default function App() {
               name="HomeScreen"
               component={HomeScreen}
               options={{ title: '\ucd08\uc131\ube59\uace0' }}
+            />
+            <Stack.Screen
+              name="LeaderboardsScreen"
+              component={LeaderboardsScreen}
+              options={{ title: 'Leaderboards' }}
+            />
+            <Stack.Screen
+              name="AchievementsScreen"
+              component={AchievementsScreen}
+              options={{ title: 'Achievements' }}
             />
             <Stack.Screen
               name="RoomLobby"

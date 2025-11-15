@@ -4,16 +4,16 @@
   "description": "Frontend for 초성빙고 (Choseong Bingo) - Multilingual multiplayer word bingo game",
   "main": "index.ts",
   "scripts": {
-    "start": "expo start --clear",
-    "start:dev": "expo start --dev-client --clear",
+    "start": "dotenv -e .env -- expo start --clear",
+    "start:dev": "dotenv -e .env -- expo start --dev-client --clear",
     "android": "expo start --android",
     "ios": "expo start --dev-client --ios",
     "ios:device": "expo start --ios --device",
     "ios:simulator": "expo start --ios --simulator",
     "web": "expo start --web",
     "build": "expo build",
-    "eas:dev:ios": "eas build --profile development --platform ios --auto-submit",
-    "eas:dev:android": "eas build --profile development --platform android --auto-submit",
+    "eas:dev:ios": "eas build --profile development --platform ios",
+    "eas:dev:android": "eas build --profile development --platform android",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
@@ -38,6 +38,7 @@
     "expo-linear-gradient": "^14.1.5",
     "expo-status-bar": "~2.0.1",
     "hangul-js": "^0.2.6",
+    "lottie-react-native": "7.1.0",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "react-native": "0.76.9",
@@ -66,7 +67,8 @@
     "eslint-plugin-react-hooks": "^4.6.0",
     "jest": "^29.7.0",
     "react-test-renderer": "18.3.1",
-    "typescript": "~5.3.3"
+    "typescript": "~5.3.3",
+    "dotenv-cli": "^7.4.1"
   },
   "keywords": [
     "bingo",
