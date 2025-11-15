@@ -154,7 +154,7 @@ const LoginScreen = () => {
   return (
     <SafeAreaView style={styles.container}>
       <LinearGradient
-        colors={['##FFFFFF', '#f5f1eb']}
+        colors={['#FFFFFF', '#f5f1eb']}
         style={styles.backgroundGradient}
       >
         <KeyboardAvoidingView
@@ -446,7 +446,7 @@ const LoginScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '##FFFFFF',
+    backgroundColor: '#FFFFFF',
   },
   backgroundGradient: {
     flex: 1,

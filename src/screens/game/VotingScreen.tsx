@@ -879,4 +879,5 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: 'rgba(255, 68, 68, 0.2)'
     },
+    topOverlay: { position: 'absolute', top: 8, right: 8, zIndex: 1000, elevation: 10 },
 });

@@ -9,7 +9,6 @@ import logger from '../utils/logger';
 import { API_CONFIG, SOCKET_CONFIG } from '../constants/config';
 import { navigate } from './navigation';
 import { safeStoreUpdate } from '../utils/socketHelpers';
-import { simulateServerEvents } from '../utils/mockHelpers';
 import { toCurrentRoom } from '../utils/roomAdapter';
 
 class SocketService {
@@ -688,13 +687,7 @@ class SocketService {
     this.socket?.emit('pregame:leave', { roomId });
   }
 
-  /**
-   * Mock server events for development/testing
-   * @deprecated Use simulateServerEvents from utils/mockHelpers instead
-   */
-  simulateServerEvents(): void {
-    simulateServerEvents();
-  }
+  
 
   // 🎯 PREGAME BOARD STATUS METHODS
 
